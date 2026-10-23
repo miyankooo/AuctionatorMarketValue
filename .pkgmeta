@@ -1,4 +1,10 @@
 package-as: AuctionatorPlus
+manual-changelog: CHANGELOG.md
 
 ignore:
   - CLAUDE.md
+  - Tests
+  - Tools
+
+required-dependencies:
+  - auctionator

@@ -1,6 +1,6 @@
 local _, AP = ...
 
--- "Show Similar Items / Bags": while gear or a container sits in the sale slot, browse the auction house for comparable listings and merge one row per comparable into the selling tab's current-prices listing, cheapest listing and total available per item
+-- Show Similar Items: while gear or a container sits in the sale slot, browse the auction house for comparable listings and merge one row per comparable into the selling tab's current-prices listing, cheapest listing and total available per item
 AP.SimilarItems = {}
 
 -- Trade goods and unequippable items report an empty equipLoc
@@ -39,20 +39,6 @@ local SLOT_INVENTORY_TYPES = {
     INVTYPE_HOLDABLE = Enum.InventoryType.IndexHoldableType,
 }
 
-local CHECKBOX_TEXT = {
-    gear = {
-        label = "Show Similar Items",
-        tooltip = "When a piece of gear is placed for sale, also list the cheapest auction of every item with the same slot and armor or weapon type within %d levels of its required level. Matches must carry every stat of the item being sold, each within %d%% of its amount, with a stat count within %d of it. Weapons must additionally deal within %d%% of its damage per second. Click a similar auction to take its unit price for your listing.",
-    },
-    bag = {
-        label = "Show Similar Bags",
-        tooltip = "When a container is placed for sale, also list the cheapest auction of every container with the same number of slots. Click a similar auction to take its unit price for your listing.",
-    },
-}
-
--- Gear and bags remember their own choice
-local SETTING_KEYS = { gear = "showSimilarItems", bag = "showSimilarBags" }
-
 -- Browse pages keep coming for large categories; stop asking past this many rows
 local MAX_BROWSE_ROWS = 600
 
@@ -70,8 +56,6 @@ local BROWSE_EVENTS = {
 
 -- profile describes the sale item while comparables are gathered; a new sale search replaces it, which retires every callback still holding the old one. browsing is true while the browse listener pages results, waiting while the browse waits for a shopping search or an incremental scan to end
 local watch = {
-    saleLink = nil,
-    saleKind = nil,
     profile = nil,
     browsing = false,
     waiting = false,
@@ -79,8 +63,8 @@ local watch = {
 
 local browseFrame = CreateFrame("Frame")
 
--- The Show Similar checkbox under the bag panel, created on the first AH open
-local similarCheck
+-- Set once the Selling tab's OnHide hook is in place
+local hooked = false
 
 -- ===== Sale item =====
 -- Containers and quivers count as bags, everything equippable as gear
@@ -93,11 +77,6 @@ local function kindOf(itemLink)
         return "gear"
     end
     return nil
-end
-
--- Whether the player wants comparables for this kind of sale item
-local function isWanted(kind)
-    return kind ~= nil and AP.DB()[SETTING_KEYS[kind]] == true
 end
 
 -- Server browse filters from class, subclass and slot; chest and robe listings form one pool like the normalized slot
@@ -191,37 +170,6 @@ local function matches(profile, itemRef)
     return math.abs(AP.ItemStats.Count(stats) - AP.ItemStats.Count(profile.statSet)) <= db.statCountTolerance
 end
 
--- ===== Checkbox =====
--- Label and saved state for the sale item's kind; hidden for items without comparables
-local function showCheckbox()
-    if not similarCheck then return end
-
-    local text = CHECKBOX_TEXT[watch.saleKind]
-    if not text then
-        similarCheck:Hide()
-        return
-    end
-    similarCheck.Text:SetText(text.label)
-    similarCheck:SetChecked(isWanted(watch.saleKind))
-    similarCheck:Show()
-end
-
-local function showTooltip(self)
-    local text = CHECKBOX_TEXT[watch.saleKind]
-    if not text then return end
-    local db = AP.DB()
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip_SetTitle(GameTooltip, text.label)
-    GameTooltip_AddHighlightLine(GameTooltip, text.tooltip:format(db.levelTolerance, db.statValueTolerance, db.statCountTolerance, db.dpsTolerancePct), true)
-    GameTooltip:Show()
-end
-
-local function trackSaleItem(itemLink)
-    watch.saleLink = itemLink
-    watch.saleKind = itemLink and kindOf(itemLink) or nil
-    showCheckbox()
-end
-
 -- ===== Merging into the current-prices listing =====
 -- Vanilla random suffixes are fixed per suffix id, so the item string names the exact item; the cached hyperlink lets chat links and previews work on the row
 local function linkFor(itemKey)
@@ -229,23 +177,33 @@ local function linkFor(itemKey)
     return select(2, C_Item.GetItemInfo(itemString)) or itemString
 end
 
--- One row per comparable in the shape of Auctionator's sell-search rows; no owners, so the row tooltip shows the item alone
+-- Item level in the item's quality colour, as on Auctionator's own rows; white while the quality is unknown
+local function levelText(itemLink, level)
+    local quality = select(3, C_Item.GetItemInfo(itemLink))
+    local colorData = quality and ITEM_QUALITY_COLORS[quality]
+    local color = colorData and colorData.color or HIGHLIGHT_FONT_COLOR
+    return color:WrapTextInColorCode(tostring(level))
+end
+
+-- One row per comparable in the shape of Auctionator's sell-search rows, marked Similar in the Owned column so it never reads as a listing of the sale item; no owners, so the row tooltip shows the item alone
 local function rowFor(result)
     local itemKey = result.itemKey
+    local itemLink = linkFor(itemKey)
+    local level = itemKey.itemLevel or 0
     return {
         apComparable = true,
         itemKey = itemKey,
-        itemLink = linkFor(itemKey),
+        itemLink = itemLink,
         auctionID = "ap:" .. AP.Bridge.ItemKeyString(itemKey),
         price = result.minPrice,
         quantity = result.totalQuantity,
         quantityFormatted = FormatLargeNumber(result.totalQuantity),
-        level = itemKey.itemLevel or 0,
-        levelPretty = tostring(itemKey.itemLevel or 0),
+        level = level,
+        levelPretty = levelText(itemLink, level),
         otherSellers = "",
         timeLeft = 0,
         timeLeftPretty = "",
-        owned = "",
+        owned = GRAY_FONT_COLOR:WrapTextInColorCode("Similar"),
         itemType = Auctionator.Constants.ITEM_TYPES.ITEM,
         canBuy = false,
     }
@@ -369,8 +327,7 @@ end
 -- Every sell search of the slotted item restarts the comparables, so Refresh and re-drops stay in step with the listing; while another browse owns the result set the profile waits for it to end
 local function onSellSearch(itemLink)
     cancel()
-    trackSaleItem(itemLink)
-    if not isWanted(watch.saleKind) then return end
+    if not itemLink or not AP.DB().showSimilar then return end
 
     local profile = profileFor(itemLink)
     if not profile then return end
@@ -422,7 +379,6 @@ AP.Bridge.Listen({
         onSellSearch(second)
     elseif eventName == Auctionator.Selling.Events.ClearBagItem then
         cancel()
-        trackSaleItem(nil)
     elseif eventName == Auctionator.AH.Events.ItemSearchResultsReady then
         onNativeResults(first.itemID)
     elseif eventName == Auctionator.AH.Events.CommoditySearchResultsReady then
@@ -434,7 +390,7 @@ AP.Bridge.Listen({
     end
 end)
 
--- A comparable is no auction, so its clicks never reach Auctionator's cancel and buy shortcuts: modified clicks link or preview the item, a left click hands over its exact price. Replaced on the mixin before the AH creates any rows
+-- A comparable is no auction, so its clicks never reach Auctionator's cancel and buy shortcuts: modified clicks link or preview the item, a left click undercuts its price like any other row. Replaced on the mixin before the AH creates any rows
 local baseRowClick = AuctionatorSellSearchRowMixin.OnClick
 function AuctionatorSellSearchRowMixin:OnClick(button, ...)
     local row = self.rowData
@@ -448,30 +404,13 @@ function AuctionatorSellSearchRowMixin:OnClick(button, ...)
     end
 end
 
--- Under the bag panel, in the strip the price mini-tabs leave free on the left
+-- Leaving the tab ends a browse no one would see and frees the result set for the other tabs; the Selling tab exists once the AH has opened
 function AP.SimilarItems.Ensure()
-    if similarCheck then return true end
+    if hooked then return true end
     local sellingFrame = AuctionatorSellingFrame
-    local inset = sellingFrame and sellingFrame.BagInset
-    if not inset then return false end
+    if not sellingFrame then return false end
 
-    local check = CreateFrame("CheckButton", "AuctionatorPlusShowSimilar", sellingFrame, "UICheckButtonTemplate")
-    check:SetSize(24, 24)
-    check:SetPoint("TOPLEFT", inset, "BOTTOMLEFT", 0, -1)
-    check:SetScript("OnClick", function(self)
-        if not watch.saleKind then return end
-        AP.DB()[SETTING_KEYS[watch.saleKind]] = self:GetChecked() and true or false
-
-        -- Re-running the item's own search rebuilds the listing with or without comparables
-        if watch.saleLink then AP.Bridge.RefreshSellSearch() end
-    end)
-    check:SetScript("OnEnter", showTooltip)
-    check:SetScript("OnLeave", GameTooltip_Hide)
-
-    -- Leaving the tab ends a browse no one would see and frees the result set for the other tabs
     sellingFrame:HookScript("OnHide", cancel)
-
-    similarCheck = check
-    showCheckbox()
+    hooked = true
     return true
 end

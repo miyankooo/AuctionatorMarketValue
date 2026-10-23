@@ -1,12 +1,10 @@
 local _, AP = ...
 
--- Each returns true once its UI piece exists; order matters where one button anchors to another
+-- Each returns true once its piece is in place in Auctionator's frames
 local ENSURES = {
-    AP.FullScanButton.Ensure,
     AP.SimilarItems.Ensure,
     AP.SaleScan.Ensure,
     AP.ShoppingFilter.Ensure,
-    AP.SettingsPanel.EnsureButton,
 }
 
 -- Retry until every piece is in place; Auctionator creates the host frames on or shortly after the first AH open
@@ -25,7 +23,6 @@ bootstrap:RegisterEvent("AUCTION_HOUSE_SHOW")
 bootstrap:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         AP.SettingsPanel.Register()
-        AP.Guide.ShowOnce()
     elseif event == "AUCTION_HOUSE_SHOW" then
         ensureButtons(1)
     end

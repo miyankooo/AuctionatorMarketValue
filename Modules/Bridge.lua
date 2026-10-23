@@ -56,16 +56,6 @@ function AP.Bridge.AuctionPrice(itemRef)
     return nil
 end
 
--- Days since Auctionator last recorded a price; nil without history
-function AP.Bridge.PriceAge(itemRef)
-    local db = Auctionator.Database
-    for _, dbKey in ipairs(db and AP.Bridge.DBKeys(itemRef) or {}) do
-        local ok, days = pcall(db.GetPriceAge, db, dbKey)
-        if ok and type(days) == "number" then return days end
-    end
-    return nil
-end
-
 -- Daily rows for one database key, newest first; empty without history
 function AP.Bridge.PriceHistory(dbKey)
     local db = Auctionator.Database
@@ -100,34 +90,12 @@ local function fire(eventName, ...)
         :UnregisterSource(source)
 end
 
--- Set the sale price to an exact amount, skipping Auctionator's undercut
+-- Set the sale price from a listed price with Auctionator's undercut, as a click on its own rows does
 function AP.Bridge.SelectPrice(price)
-    fire(Auctionator.Selling.Events.PriceSelected, { buyout = price }, false)
-end
-
--- Re-run the slotted item's own current-prices search
-function AP.Bridge.RefreshSellSearch()
-    fire(Auctionator.Selling.Events.RefreshSearch)
+    fire(Auctionator.Selling.Events.PriceSelected, { buyout = price }, true)
 end
 
 -- ===== Auction house =====
--- Whether Auctionator's "Alternate Scan Mode" option is on: Auctionator then runs the replicate scan, allowed once per 15 minutes, and otherwise (its default) the incremental browse scan
-function AP.Bridge.IsReplicateScan()
-    return Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN)
-end
-
--- Start the full scan the way Auctionator's own Full Scan button does; both scan frames exist once the AH has opened
-function AP.Bridge.StartFullScan()
-    local state = Auctionator.State
-    local scanFrame
-    if AP.Bridge.IsReplicateScan() then
-        scanFrame = state.FullScanFrameRef
-    else
-        scanFrame = state.IncrementalScanFrameRef
-    end
-    if scanFrame then scanFrame:InitiateScan() end
-end
-
 -- Category browse through Auctionator's throttle queue
 function AP.Bridge.Browse(query)
     pcall(Auctionator.AH.SendBrowseQuery, query)

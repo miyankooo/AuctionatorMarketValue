@@ -1,5 +1,7 @@
 local _, AP = ...
 
+local UI = LibStub("LibNativeUI-1.0")
+
 AP.ShoppingFilter = {}
 
 -- Filterable stats in dialog order, physical column first; every key matches AP.ItemStats.FullStatSet
@@ -43,15 +45,13 @@ for _, key in ipairs(STAT_ORDER) do
     OFFERED[key] = true
 end
 
-local BUTTON_GAP = 5
 local FILTER_COLUMNS = 2
 local FILTER_ROWS = math.ceil(#STAT_ORDER / FILTER_COLUMNS)
 local COLUMN_WIDTH = 208
 local DROPDOWN_WIDTH = 120
-local APPLY_WIDTH = 96
-local DIALOG_WIDTH = 2 * AP.Panel.INSET + FILTER_COLUMNS * COLUMN_WIDTH
+local DIALOG_WIDTH = 2 * UI.Space.dialog + FILTER_COLUMNS * COLUMN_WIDTH
 
-local filterButton, resetButton, dialog
+local filterButton, dialog
 local provider, originalAppend
 
 -- Every entry Auctionator appended for the current search, in arrival order, so a filter change rebuilds the visible rows without a new search
@@ -113,19 +113,16 @@ local function entryMatches(entry, filter)
     return statsMatch(itemText, filter), false
 end
 
-local function updateButtonState()
-    if not filterButton then return end
+local function filterLabel(count)
+    return ("%s (%d)"):format(FILTER, count)
+end
 
+local function updateButtonState()
     local filter = activeFilter()
-    if filter then
-        local count = 0
-        for _ in pairs(filter.stats) do count = count + 1 end
-        filterButton:SetText(("Filter (%d)"):format(count))
-    else
-        filterButton:SetText("Filter")
+    if filterButton then
+        filterButton:SetText(filter and filterLabel(AP.ItemStats.Count(filter.stats)) or FILTER)
     end
-    DynamicResizeButton_Resize(filterButton)
-    resetButton:SetEnabled(filter ~= nil)
+    if dialog then dialog.clearButton:SetEnabled(filter ~= nil) end
 end
 
 -- Re-append an uncached entry once its item data arrives, if it matches by then; the provider dedups by item, so double appends are safe
@@ -192,74 +189,79 @@ local function applyToControls(filter)
     dialog.logicDropdown:GenerateMenu()
 end
 
--- Parented to the shopping frame so it hides with the Auction House
+-- Every change applies at once, so the dialog needs no Apply button
+local function saveControls()
+    AP.DB().shoppingStatFilter = readControls()
+    reapplyFilter()
+end
+
+local function clearFilter()
+    AP.DB().shoppingStatFilter = nil
+    applyToControls(nil)
+    reapplyFilter()
+end
+
+-- Two columns of stat checkboxes in one block, filled top to bottom
+local function createStatGrid(parent)
+    local grid = CreateFrame("Frame", nil, parent)
+    grid:SetSize(FILTER_COLUMNS * COLUMN_WIDTH, FILTER_ROWS * UI.Size.row)
+    dialog.statChecks = {}
+    for index, key in ipairs(STAT_ORDER) do
+        local check = UI.CreateCheckbox(grid, FILTER_LABELS[key])
+        local column = math.floor((index - 1) / FILTER_ROWS)
+        local row = (index - 1) % FILTER_ROWS
+        check:SetPoint("TOPLEFT", grid, "TOPLEFT", column * COLUMN_WIDTH, -row * UI.Size.row)
+        check:SetScript("OnClick", saveControls)
+        dialog.statChecks[key] = check
+    end
+    return grid
+end
+
+-- Parented to the shopping frame so it hides with the Auction House. Escape closes it with the Auction House through UISpecialFrames; an addon-registered GameMenuEsc handler would taint Escape in combat
 local function buildDialog()
-    local panel = AP.Panel
-    dialog = panel.Create("AuctionatorPlusStatFilterDialog", "Stat Filter", DIALOG_WIDTH, AuctionatorShoppingFrame)
+    dialog = UI.CreateDialog({ name = "AuctionatorPlusStatFilterDialog", title = "Stat Filter", width = DIALOG_WIDTH, parent = AuctionatorShoppingFrame })
 
     dialog.statLogic = "AND"
-    local logicDropdown = CreateFrame("DropdownButton", nil, dialog, "WowStyle1DropdownTemplate")
-    logicDropdown:SetPoint("TOPLEFT", dialog, "TOPLEFT", panel.INSET, -panel.PAD_TOP)
-    logicDropdown:SetSize(DROPDOWN_WIDTH, panel.ROW)
+    local logicDropdown = UI.CreateDropdown(dialog, DROPDOWN_WIDTH)
     MenuUtil.CreateRadioMenu(logicDropdown,
         function(value) return dialog.statLogic == value end,
-        function(value) dialog.statLogic = value end,
+        function(value)
+            dialog.statLogic = value
+            saveControls()
+        end,
         { "Match All", "AND" },
         { "Match Any", "OR" })
     dialog.logicDropdown = logicDropdown
 
-    dialog.statChecks = {}
-    for index, key in ipairs(STAT_ORDER) do
-        local check = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
-        check:SetSize(panel.ROW, panel.ROW)
-        local column = math.floor((index - 1) / FILTER_ROWS)
-        local row = (index - 1) % FILTER_ROWS
-        check:SetPoint("TOPLEFT", logicDropdown, "BOTTOMLEFT", column * COLUMN_WIDTH, -panel.GAP - row * panel.ROW)
-        check.Text:SetFontObject("GameFontHighlight")
-        check.Text:SetText(FILTER_LABELS[key])
-
-        dialog.statChecks[key] = check
-    end
-
-    local applyButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
-    applyButton:SetSize(APPLY_WIDTH, panel.BUTTON_HEIGHT)
-    applyButton:SetText("Apply")
-    applyButton:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -panel.INSET, panel.INSET)
-    applyButton:SetScript("OnClick", function()
-        AP.DB().shoppingStatFilter = readControls()
-        dialog:Hide()
-        reapplyFilter()
-    end)
-
-    -- Dropdown row, stat grid, a section gap and the Apply row stack between the header clearance and the bottom inset
-    dialog:SetHeight(panel.PAD_TOP + panel.ROW + panel.GAP + FILTER_ROWS * panel.ROW + panel.SECTION + panel.BUTTON_HEIGHT + panel.INSET)
+    -- The native 25 px dropdown sits in a slot snapped to the grid
+    dialog:AddField(logicDropdown, UI.Snap(UI.Native.dropdownHeight), nil, UI.Native.dropdownArt)
+    dialog:AddField(createStatGrid(dialog), FILTER_ROWS * UI.Size.row, UI.Space.gap)
+    dialog.clearButton = dialog:AddButton(CLEAR_ALL, clearFilter)
+    dialog:Fit()
 
     dialog:SetScript("OnShow", function()
         applyToControls(activeFilter())
+        updateButtonState()
     end)
+
+    -- Closed with its tab, so it never reopens by itself on the next visit
+    AuctionatorShoppingFrame:HookScript("OnHide", function() dialog:Hide() end)
 end
 
--- Parented to the shopping full-scan button so both filter buttons follow its bottom-row spot and hide with it behind the buy screens
-local function ensureButtons()
+-- Bottom-left of the results inset, on the Export Results row. Parented to that button so it hides with it whenever a buy screen covers the results. Sized once for the longest label, so the count never moves it
+local function ensureButton()
     if filterButton then return true end
-    local fullScan = AP.shoppingScanButton
-    if not fullScan then return false end
+    local shoppingFrame = AuctionatorShoppingFrame
+    local inset = shoppingFrame and shoppingFrame.ShoppingResultsInset
+    local exportButton = shoppingFrame and shoppingFrame.ExportCSV
+    if not inset or not exportButton then return false end
 
-    filterButton = CreateFrame("Button", nil, fullScan, "UIPanelDynamicResizeButtonTemplate")
-    filterButton:SetPoint("LEFT", fullScan, "RIGHT", BUTTON_GAP, 0)
+    filterButton = UI.CreateButton(exportButton, filterLabel(#STAT_ORDER))
+    filterButton:SetPoint("LEFT", inset, "LEFT", 0, 0)
+    filterButton:SetPoint("BOTTOM", exportButton, "BOTTOM", 0, 0)
     filterButton:SetScript("OnClick", function()
         if not dialog then buildDialog() end
         dialog:SetShown(not dialog:IsShown())
-    end)
-
-    resetButton = CreateFrame("Button", nil, fullScan, "UIPanelDynamicResizeButtonTemplate")
-    resetButton:SetText("Reset Filter")
-    DynamicResizeButton_Resize(resetButton)
-    resetButton:SetPoint("LEFT", filterButton, "RIGHT", BUTTON_GAP, 0)
-    resetButton:SetScript("OnClick", function()
-        AP.DB().shoppingStatFilter = nil
-        if dialog then dialog:Hide() end
-        reapplyFilter()
     end)
 
     updateButtonState()
@@ -289,7 +291,7 @@ AP.Bridge.Listen({ Auctionator.Shopping.Tab.Events.SearchStart }, function()
 end)
 
 function AP.ShoppingFilter.Ensure()
-    local buttonsReady = ensureButtons()
+    local buttonsReady = ensureButton()
     local providerReady = installProviderFilter()
     return buttonsReady and providerReady
 end

@@ -1,10 +1,14 @@
 local _, AP = ...
 
--- "Sale Scan": one live price search per distinct bag item, sequentially through Auctionator's throttle queue, recording each cheapest buyout in Auctionator's price database so the Relative Value and the bag glow reflect current prices
+local UI = LibStub("LibNativeUI-1.0")
+
+-- "Sale Scan": one live price search per distinct bag item, sequentially through Auctionator's throttle queue, recording each cheapest buyout in Auctionator's price database so the Relative column and the bag glow reflect current prices
 AP.SaleScan = {}
 
 local BUTTON_LABEL = "Sale Scan"
-local BUTTON_GAP = 4
+
+-- Fixed, so a changing progress label never resizes the button or moves what sits beside it
+local BUTTON_WIDTH = 112
 
 -- A search the server never answers is skipped after this
 local QUERY_TIMEOUT_SECONDS = 8
@@ -151,28 +155,42 @@ local function start()
 end
 
 local function addSlottedWarning(tooltip)
-    if hasSaleItem() and not state.queue then
+    if hasSaleItem() then
         GameTooltip_AddErrorLine(tooltip, "Clear the item in the sale slot first.", true)
     end
 end
 
--- Left of the selling tab's Full Scan button
+-- Greyed out while an item is slotted; the tooltip still shows and says why
+local function updateEnabled()
+    if scanButton then scanButton:SetEnabled(not hasSaleItem()) end
+end
+
+-- Under the prices inset, at its right edge, on the row of the price mini-tabs
 function AP.SaleScan.Ensure()
     if scanButton then return true end
     local sellingFrame = AuctionatorSellingFrame
-    local fullScanButton = AP.sellingScanButton
-    if not sellingFrame or not fullScanButton then return false end
+    local inset = sellingFrame and sellingFrame.HistoricalPriceInset
+    local saleItem = sellingFrame and sellingFrame.SaleItemFrame
+    if not inset or not saleItem then return false end
 
-    local button = AP.Panel.CreateTabButton("AuctionatorPlusSaleScanButton", sellingFrame, BUTTON_LABEL, BUTTON_LABEL,
-        "Runs one live price search for every item in the bag panel, so the Relative Value and the item glows use current auction prices. Click again to cancel. Needs an empty sale slot, and steps aside as soon as you select an item to sell.",
-        addSlottedWarning)
-    button:SetPoint("RIGHT", fullScanButton, "LEFT", -BUTTON_GAP, 0)
+    local button = UI.CreateButton(sellingFrame, BUTTON_LABEL, BUTTON_WIDTH)
+    UI.AttachTooltip(button, function(tooltip)
+        GameTooltip_SetTitle(tooltip, BUTTON_LABEL)
+        GameTooltip_AddHighlightLine(tooltip, "Runs one live price search for every item in the bag panel, so the Relative column and the bag glow use current prices. Click again to cancel. Needs an empty sale slot.", true)
+        addSlottedWarning(tooltip)
+    end, "ANCHOR_TOP")
+    button:SetPoint("TOPRIGHT", inset, "BOTTOMRIGHT", 0, -4)
+    button:SetMotionScriptsWhileDisabled(true)
     button:SetScript("OnClick", function()
         if state.queue then stop() else start() end
     end)
 
     sellingFrame:HookScript("OnHide", stop)
 
+    -- Auctionator calls Update after every change of the slotted item, including resets after posting
+    hooksecurefunc(saleItem, "Update", updateEnabled)
+
     scanButton = button
+    updateEnabled()
     return true
 end
