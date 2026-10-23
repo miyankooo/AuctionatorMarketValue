@@ -1,29 +1,27 @@
 ## Interface: 16001
 ## Title: Auctionator Plus
-## Notes: Adds price-history tooltips, relative value columns, stat filters and similar-item selling comparisons to Auctionator's Auction House tabs.
+## Notes: Adds price history, a relative value column, stat filters and similar-item pricing to Auctionator.
 ## Author: miyanko
-## Version: 4.0.0
+## Version: 1.0.0
 ## Category: Auctions
-## IconTexture: 133784
+## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster
 ## SavedVariables: AuctionatorPlusDB
 ## AddonCompartmentFunc: AuctionatorPlus_CompartmentClick
 ## AddonCompartmentFuncOnEnter: AuctionatorPlus_CompartmentEnter
 ## AddonCompartmentFuncOnLeave: AuctionatorPlus_CompartmentLeave
 
+Libs\LibStub\LibStub.lua
+Libs\LibNativeUI-1.0\LibNativeUI-1.0.lua
+
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\ItemStats.lua
-Modules\TSM.lua
 Modules\PriceHistory.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua
-UI\Panel.lua
 Modules\SimilarItems.lua
 Modules\ShoppingFilter.lua
-Modules\FullScanButton.lua
 Modules\SaleScan.lua
-UI\Guide.lua
 UI\Settings.lua
 Modules\Bootstrap.lua

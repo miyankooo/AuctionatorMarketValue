@@ -6,9 +6,9 @@ local _, AP = ...
 local TEXT_FIELD = "apTrendText"
 local SORT_FIELD = "apTrendValue"
 
--- Relative Value of price against the item's averages, in the colours of mode
+-- Relative value of price against the item's average, in the colours of mode
 local function setTrend(entry, price, itemRef, mode)
-    local pct = AP.Trend.IndexFor(price, itemRef)
+    local pct = AP.Trend.Percent(price, AP.Trend.AverageFor(itemRef))
     entry[SORT_FIELD] = pct
     entry[TEXT_FIELD] = AP.Trend.Colorize(pct, mode) or ""
 end
@@ -20,7 +20,7 @@ local TREND_COLUMN = {
     headerText = "Relative",
     cellTemplate = "AuctionatorStringCellTemplate",
     cellParameters = { TEXT_FIELD },
-    width = 62,
+    width = 64,
 }
 
 -- Append the column once per provider through a private copy, so Auctionator's shared layout table stays untouched

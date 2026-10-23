@@ -209,6 +209,11 @@ local function addSecondaryStats(line, present)
         present.allresistance = value
     end
 
+    -- Vanilla spell piercing reads "Decreases the magical resistances of your spell targets by 10."
+    if line:find("magical resistances", 1, true) then
+        present.spellpenetration = value
+    end
+
     local spell = line:find("spell", 1, true) or line:find("magic", 1, true)
     if line:find("critical", 1, true) then
         present[spell and "spellcrit" or "crit"] = value
