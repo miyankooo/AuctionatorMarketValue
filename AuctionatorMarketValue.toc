@@ -23,5 +23,7 @@ Modules\BagGlow.lua
 Modules\SimilarItems.lua
 Modules\ShoppingFilter.lua
 Modules\SaleScan.lua
+Modules\AuctionHouseLists.lua
+Modules\PostingCheck.lua
 UI\Settings.lua
 Modules\Bootstrap.lua

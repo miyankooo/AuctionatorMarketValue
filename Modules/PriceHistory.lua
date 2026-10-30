@@ -10,6 +10,9 @@ local HISTORY_WINDOW_DAYS = 14
 -- Below this a quartile trim is too thin to stop same-side freak days, the median is safer
 local MIN_TRIM_SAMPLES = 8
 
+-- An average built from fewer days of history says little, so its percentage shows in grey
+AP.Trend.MIN_DAYS = 3
+
 local function medianOf(sorted)
     local count = #sorted
     local mid = math.floor(count / 2)
@@ -40,7 +43,7 @@ local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key; nil without usable history
+-- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without usable history
 local function averageFor(dbKey)
     local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
     local recent = {}
@@ -52,7 +55,7 @@ local function averageFor(dbKey)
         end
     end
     if #recent == 0 then return nil end
-    return math.floor(interquartileMean(recent) + 0.5)
+    return { math.floor(interquartileMean(recent) + 0.5), #recent }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that
@@ -69,12 +72,20 @@ local function cachedAverage(dbKey)
     return frameAverages[dbKey] or nil
 end
 
--- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups
+-- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average > 0 then return average end
+        if average and average[1] > 0 then return average[1], average[2] end
     end
+    return nil
+end
+
+-- Browse rows carry an item key, item rows a link and commodity rows only an item id
+function AP.Trend.RefFor(entry)
+    if entry.itemLink then return entry.itemLink end
+    if entry.itemKey then return entry.itemKey end
+    if entry.itemID then return AP.Bridge.BaseItemKey(entry.itemID) end
     return nil
 end
 
@@ -90,14 +101,22 @@ function AP.Trend.Percent(currentPrice, average)
     return math.floor((currentPrice - average) / average * 100 + 0.5)
 end
 
--- "+N%" / "-N%" / "0%" wrapped in the colour dictated by mode; nil pct yields nil so callers can skip an empty trend
-function AP.Trend.Colorize(pct, mode)
+-- "+N%" / "-N%" / "0%" wrapped in the colour dictated by mode, grey when fewer than MIN_DAYS of history back it; nil pct yields nil so callers can skip an empty trend
+function AP.Trend.Colorize(pct, mode, days)
     if type(pct) ~= "number" then return nil end
 
+    if days and days < AP.Trend.MIN_DAYS then return GRAY_FONT_COLOR:WrapTextInColorCode(string.format("%+d%%", pct)) end
     if pct == 0 then return HIGHLIGHT_FONT_COLOR:WrapTextInColorCode("0%") end
     local increaseGood = mode == AP.Trend.UP_GREEN
     local color = ((pct > 0) == increaseGood) and GREEN_FONT_COLOR or RED_FONT_COLOR
     return color:WrapTextInColorCode(string.format("%+d%%", pct))
+end
+
+-- A price against its item's average: the coloured text, the percentage and the days of history; nil text without usable history
+function AP.Trend.Relative(price, itemRef, mode)
+    local average, days = AP.Trend.AverageFor(itemRef)
+    local pct = AP.Trend.Percent(price, average)
+    return AP.Trend.Colorize(pct, mode, days), pct, days
 end
 
 -- ===== Item tooltip rows =====
@@ -112,7 +131,7 @@ local function shown(frame)
 end
 
 -- Seller's colours in the selling views, buyer's colours anywhere else in an open Auction House
-local function trendMode()
+function AP.Trend.Mode()
     local ah = AuctionHouseFrame
     if not shown(ah) then return AP.Trend.UP_GREEN end
     if shown(AuctionatorSellingFrame) or shown(ah.ItemSellFrame) or shown(ah.CommoditiesSellFrame) then
@@ -123,13 +142,13 @@ end
 
 -- The average, then the last known price against it; nothing without history, and Auctionator's own lines are left untouched
 local function addPriceRows(tooltip, itemLink)
-    local average = AP.Trend.AverageFor(itemLink)
+    local average, days = AP.Trend.AverageFor(itemLink)
     if not average then return end
 
     local auction = AP.Bridge.AuctionPrice(itemLink)
     GameTooltip_AddBlankLineToTooltip(tooltip)
-    addRow(tooltip, "14-day average", AP.Bridge.Money(average))
-    addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), trendMode()))
+    addRow(tooltip, ("14-day average (%d %s)"):format(days, days == 1 and "day" or "days"), AP.Bridge.Money(average))
+    addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), AP.Trend.Mode(), days))
 
     -- Resize so the added lines render inside the tooltip frame
     tooltip:Show()

@@ -82,7 +82,7 @@ function hooksecurefunc(target, method, hook)
 end
 
 local function color(name)
-    return { WrapTextInColorCode = function(_, text) return "<" .. name .. ">" .. text .. "</>" end }
+    return { WrapTextInColorCode = function(_, text) return "<" .. name .. ">" .. text .. "</>" end, GetRGB = function() return 0, 1, 0 end }
 end
 HIGHLIGHT_FONT_COLOR, GREEN_FONT_COLOR, RED_FONT_COLOR = color("white"), color("green"), color("red")
 GRAY_FONT_COLOR, YELLOW_FONT_COLOR, NORMAL_FONT_COLOR, WARNING_FONT_COLOR = color("gray"), color("yellow"), color("gold"), color("warn")
@@ -115,6 +115,8 @@ function GameTooltip_AddInstructionLine() end
 function GameTooltip_Hide() end
 
 C_Item = {
+    DoesItemExist = function() return true end,
+    GetItemLink = function() return "item:25" end,
     GetItemInfoInstant = function() return 25, nil, nil, "INVTYPE_WEAPON", nil, 2, 7 end,
     GetItemInfo = function(link) return "Worn Sword", link, 2 end,
 }
@@ -125,7 +127,11 @@ function InCombatLockdown() return false end
 
 MenuUtil = { CreateRadioMenu = function(dropdown, isSelected, setSelected) dropdown.setSelected = setSelected end }
 FrameUtil = { RegisterFrameForEvents = function() end }
-EventUtil = { RegisterOnceFrameEventAndCallback = function() end }
+local addonLoaded = {}
+EventUtil = {
+    RegisterOnceFrameEventAndCallback = function() end,
+    ContinueOnAddOnLoaded = function(name, fn) addonLoaded[name] = addonLoaded[name] or {} table.insert(addonLoaded[name], fn) end,
+}
 SlashCmdList = {}
 
 local registered = {}
@@ -161,6 +167,7 @@ function CreateSettingsListSectionHeaderInitializer() end
 local fired = {}
 local listeners = {}
 local historyBuilds = 0
+local historyDays = 3
 
 local function provider()
     return {
@@ -206,7 +213,10 @@ Auctionator = {
         GetFirstPrice = function() return 120 end,
         GetPriceHistory = function()
             historyBuilds = historyBuilds + 1
-            return { { rawDay = math.floor(os.time() / 86400), minSeen = 100 } }
+            local today = math.floor(os.time() / 86400)
+            local rows = {}
+            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - day, minSeen = 100 } end
+            return rows
         end,
     },
     State = {},
@@ -259,7 +269,13 @@ check("Shopping filter ensure", AP.ShoppingFilter.Ensure())
 
 -- ===== Tooltip rows =====
 tooltipPostCall(GameTooltip)
-check("tooltip shows the two rows", tooltipLines[2] == "14-day average=100c" and tooltipLines[3] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
+check("tooltip shows the two rows", tooltipLines[2] == "14-day average (3 days)=100c" and tooltipLines[3] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
+historyDays = 1
+runNextFrame()
+tooltipLines = {}
+tooltipPostCall(GameTooltip)
+check("thin history greys the percentage", tooltipLines[2] == "14-day average (1 day)=100c" and tooltipLines[3] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
+historyDays = 3
 
 -- ===== Memoised average =====
 runNextFrame()
@@ -337,6 +353,69 @@ check("Sale Scan enabled again after the slot clears", scanButton:IsEnabled())
 -- ===== Parser =====
 local stats = AP.ItemStats.FullStatSet("equip: decreases the magical resistances of your spell targets by 10.")
 check("vanilla spell piercing parses", stats.spellpenetration == 10, stats.spellpenetration)
+
+-- ===== Blizzard's auction lists =====
+-- A list stand-in: rows with Blizzard's rowData and cells, the price cell last among those with money
+local function row(rowData)
+    local r = CreateFrame("Button")
+    r.rowData = rowData
+    local bid, price = CreateFrame("Frame", nil, r), CreateFrame("Frame", nil, r)
+    bid.MoneyDisplay, price.MoneyDisplay = CreateFrame("Frame"), CreateFrame("Frame")
+    local quantity = CreateFrame("Frame", nil, r)
+    quantity.MoneyDisplay = false
+    r.cells = { bid, price, quantity }
+    return r
+end
+local function list(rows)
+    local frame = CreateFrame("Frame")
+    frame.ScrollBox = { ForEachFrame = function(_, fn) for _, r in ipairs(rows) do fn(r) end end }
+    return frame
+end
+
+local cheap, dear, thin = row({ itemKey = { itemID = 25 }, buyoutAmount = 70 }), row({ itemKey = { itemID = 25 }, buyoutAmount = 130 }), row({ itemKey = { itemID = 25 } })
+
+-- Real frames answer nil for a missing key, the stand-ins a function, so the lists and windows not under test are false
+AuctionHouseFrame = CreateFrame("Frame")
+AuctionHouseFrame.BrowseResultsFrame, AuctionHouseFrame.CommoditiesBuyFrame, AuctionHouseFrame.CommoditiesSellList = false, false, false
+AuctionHouseFrame.CommoditiesSellFrame = false
+AuctionHouseFrame.ItemBuyFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
+AuctionHouseFrame.ItemBuyFrame.ItemList = list({ cheap, dear, thin })
+AuctionHouseFrame.ItemSellList = list({})
+AuctionHouseFrame.ItemSellList.shown = false
+AuctionatorSellingFrame.SaleItemFrame.shown = false
+
+local sellPrice, sellLabel = 110, nil
+local sellFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
+sellFrame.PriceInput = { GetAmount = function() return sellPrice end, MoneyInputFrame = CreateFrame("Frame") }
+sellFrame.GetItem = function() return {} end
+sellFrame.CreateFontString = function(self) sellLabel = CreateFrame("FontString", nil, self) return sellLabel end
+AuctionHouseFrame.ItemSellFrame = sellFrame
+
+local painters = {}
+local createFrame = CreateFrame
+CreateFrame = function(kind, name, parent, template)
+    local frame = createFrame(kind, name, parent, template)
+    if parent == AuctionHouseFrame and kind == "Frame" and not name then painters[#painters + 1] = frame end
+    return frame
+end
+for _, fn in ipairs(addonLoaded.Blizzard_AuctionHouseUI or {}) do fn() end
+CreateFrame = createFrame
+runNextFrame()
+local function update() for _, painter in ipairs(painters) do painter.scripts.OnUpdate(painter) end end
+update()
+
+check("two painters wait on Blizzard's auction house", #painters == 2, #painters)
+check("buy rows show the buyer's percentage", cheap.cells[2].apRelative and cheap.cells[2].apRelative.text == "<green>-30%</>", cheap.cells[2].apRelative and cheap.cells[2].apRelative.text)
+check("dear rows show red", dear.cells[2].apRelative.text == "<red>+30%</>", dear.cells[2].apRelative.text)
+check("the bid cell stays bare", cheap.cells[1].apRelative == nil)
+check("a row without a buyout shows nothing", thin.cells[2].apRelative.text == "")
+check("a deal glows", cheap.apDeal ~= nil and cheap.apDeal.shown)
+check("a dear row never glows", dear.apDeal == nil)
+check("posting shows the seller's percentage", sellLabel and sellLabel.text == "<green>+10%</> <white>vs average</>", sellLabel and sellLabel.text)
+sellPrice = 80
+runNextFrame()
+update()
+check("posting follows the typed price", sellLabel.text == "<red>-20%</> <white>vs average</>", sellLabel.text)
 
 print(failures == 0 and "All checks passed." or (failures .. " checks failed."))
 os.exit(failures == 0 and 0 or 1)

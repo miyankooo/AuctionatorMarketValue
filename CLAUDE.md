@@ -16,6 +16,9 @@
 - Sale Scan records the cheapest buyout, not the first result's `buyoutAmount or bidAmount` that Auctionator's own sell search records.
 - No TradeSkillMaster code until TSM ships a 16001 build. The last TSM code is in git history.
 - The sale slot icon keeps its glow on purpose.
+- Blizzard's auction lists and sell windows are read only from frames of the addon's own, parented to `AuctionHouseFrame`, in `OnUpdate`. Never register a ScrollBox callback or hook a cell or list method there: addon code inside Blizzard's list updates would taint the row data that feeds `PlaceBid` and the commodity purchase calls.
+- A list row is repainted only when its `rowData` table or the deal threshold changes. The price cell is the last cell with a `MoneyDisplay`, and the percentage takes the side the money leaves free (`leftAlign`).
+- An average needs `AP.Trend.MIN_DAYS` (3) days of history before its percentage is coloured, a deal glows or a bag item glows.
 - `/ap` stays unused: Blizzard's commentator commands own it (`SLASH_COMMENTATOR_ASSIGNPLAYER3`).
 - Dialogs use `UI.CreateDialog`. Escape closes the Stat Filter with the Auction House through `UISpecialFrames`. Never call `RegisterGameMenuEscHandler` from addon code: it sorts Blizzard's handler table from insecure code, which taints every Escape press and blocks the game menu in combat. The Stat Filter hides when the shopping tab hides.
 - Settings rows that only matter while a checkbox is on are its children through `SetParentInitializer`.

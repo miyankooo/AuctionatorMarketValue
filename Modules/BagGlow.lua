@@ -5,11 +5,10 @@ AP.BagGlow = {}
 -- The atlas the default bags use for new uncommon items; bright under ADD blending, so it stays visible next to green-quality borders
 local GLOW_ATLAS = "bags-glow-green"
 
--- Glow once the last known price sits the sell threshold or more above the average
+-- Glow once the last known price sits the sell threshold or more above an average with enough days behind it
 local function favorable(itemLink)
-    local price = AP.Bridge.AuctionPrice(itemLink)
-    local pct = AP.Trend.Percent(price, AP.Trend.AverageFor(itemLink))
-    return pct ~= nil and pct >= AP.DB().sellThresholdPct
+    local _, pct, days = AP.Trend.Relative(AP.Bridge.AuctionPrice(itemLink), itemLink)
+    return pct ~= nil and days >= AP.Trend.MIN_DAYS and pct >= AP.DB().sellThresholdPct
 end
 
 local function apply(button, itemLink)

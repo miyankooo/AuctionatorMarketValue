@@ -8,9 +8,9 @@ local SORT_FIELD = "apTrendValue"
 
 -- Relative value of price against the item's average, in the colours of mode
 local function setTrend(entry, price, itemRef, mode)
-    local pct = AP.Trend.Percent(price, AP.Trend.AverageFor(itemRef))
+    local text, pct = AP.Trend.Relative(price, itemRef, mode)
     entry[SORT_FIELD] = pct
-    entry[TEXT_FIELD] = AP.Trend.Colorize(pct, mode) or ""
+    entry[TEXT_FIELD] = text or ""
 end
 
 -- Auctionator's listings only read their layout entries, so the three providers share one
@@ -61,19 +61,11 @@ local function wrapSort(mixin)
     end
 end
 
--- Browse rows carry an item key, item rows a link and commodity rows only an item id
-local function refFor(entry)
-    if entry.itemLink then return entry.itemLink end
-    if entry.itemKey then return entry.itemKey end
-    if entry.itemID then return AP.Bridge.BaseItemKey(entry.itemID) end
-    return nil
-end
-
 local function decorateEach(priceField, mode)
     return function(_, entries)
         if type(entries) ~= "table" then return end
         for _, entry in ipairs(entries) do
-            setTrend(entry, entry[priceField], refFor(entry), mode)
+            setTrend(entry, entry[priceField], AP.Trend.RefFor(entry), mode)
         end
     end
 end
