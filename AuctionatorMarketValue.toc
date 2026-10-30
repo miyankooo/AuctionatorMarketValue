@@ -6,6 +6,7 @@
 ## Category: Auctions
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## Dependencies: Auctionator
+## OptionalDeps: TradeSkillMaster
 ## SavedVariables: AuctionatorMarketValueDB
 ## AddonCompartmentFunc: AuctionatorMarketValue_CompartmentClick
 ## AddonCompartmentFuncOnEnter: AuctionatorMarketValue_CompartmentEnter
@@ -16,6 +17,7 @@ Libs\LibNativeUI-1.0\LibNativeUI-1.0.lua
 
 Modules\Init.lua
 Modules\Bridge.lua
+Modules\TSM.lua
 Modules\ItemStats.lua
 Modules\PriceHistory.lua
 Modules\TrendColumn.lua

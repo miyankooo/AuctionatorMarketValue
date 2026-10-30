@@ -14,7 +14,7 @@
 - Auctionator's shopping search, its incremental scan and the Similar browse share one browse result set, since `Auctionator.AH.Queue` only throttles (`Source_ModernAH/AH/Wrappers.lua`). Two of them must never run at once. The replicate scan reads its own list and is exempt.
 - The stat parser matches the client's own `ITEM_MOD_*` and `_SHORT` strings in long and short form, `%d` included, and skips inactive `(2) Set:` lines. The Stat Filter always lists all 25 stats and drops saved keys it does not list.
 - Sale Scan records the cheapest buyout, not the first result's `buyoutAmount or bidAmount` that Auctionator's own sell search records.
-- No TradeSkillMaster code until TSM ships a 16001 build. The last TSM code is in git history.
+- TradeSkillMaster is optional and read only through `TSM_API` in `Modules/TSM.lua`: DBMarket in the tooltip, hidden while TSM is absent or has no figure (owner decision 2026-10-30).
 - The sale slot icon keeps its glow on purpose.
 - Blizzard's auction lists and sell windows are read only from frames of the addon's own, parented to `AuctionHouseFrame`, in `OnUpdate`. Never register a ScrollBox callback or hook a cell or list method there: addon code inside Blizzard's list updates would taint the row data that feeds `PlaceBid` and the commodity purchase calls.
 - A list row is repainted only when its `rowData` table or the deal threshold changes. The price cell is the last cell with a `MoneyDisplay`, and the percentage takes the side the money leaves free (`leftAlign`).

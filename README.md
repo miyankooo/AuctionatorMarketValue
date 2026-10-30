@@ -6,7 +6,7 @@ Shows how every price compares to its 14-day market value, in Auctionator and in
 
 - Blizzard's browse, buy and sell lists show each price's percentage against the 14-day average. Buy rows that sit at least your deal threshold below it glow green.
 - Typing a price in Blizzard's sell window or Auctionator's sale slot shows at once how it compares to the average.
-- Item tooltips show the 14-day average, how many days of history back it, and how the last price compares.
+- Item tooltips show the 14-day average, how many days of history back it, and how the last price compares. With TradeSkillMaster installed they also show its market value and the last price against it.
 - A percentage backed by fewer than 3 days of history shows in grey, since it says little yet.
 - A Relative column in Shopping results, the Selling tab's current prices and the buy screen shows how far each price sits from the average. Green is the good side for the view you are in.
 - A Filter button in the Shopping tab narrows equipment to the stats you tick, such as Strength, Spell Power or Critical Strike. Consumables and trade goods always stay.

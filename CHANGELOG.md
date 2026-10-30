@@ -5,6 +5,7 @@
 - Blizzard's browse, buy and sell lists show each price's percentage against the 14-day average, and buy rows below your Deal Threshold glow green.
 - Sell windows show the typed price's percentage against the average while you type.
 - Tooltips name the days of history behind the average, and percentages from fewer than 3 days show in grey.
+- With TradeSkillMaster installed, tooltips add TSM market value and the last price against it. TSM has no WoW Forever build yet, so the rows stay hidden until it ships one.
 - Show Similar Items is now a setting, on by default, instead of a checkbox under the bag panel that covered the gold display.
 - Similar auctions read Similar in the Owned column and show their item level in the item's quality colour.
 - A click on a similar auction now undercuts its price, like every other row.

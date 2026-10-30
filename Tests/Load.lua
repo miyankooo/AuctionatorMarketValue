@@ -277,6 +277,18 @@ tooltipPostCall(GameTooltip)
 check("thin history greys the percentage", tooltipLines[2] == "14-day average (1 day)=100c" and tooltipLines[3] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
 historyDays = 3
 
+-- ===== TSM rows =====
+check("no TSM rows without TSM", #tooltipLines == 3, #tooltipLines)
+TSM_API = {
+    ToItemString = function() return "i:25" end,
+    GetCustomPriceValue = function(source) return source == "DBMarket" and 80 or nil end,
+}
+tooltipLines = {}
+runNextFrame()
+tooltipPostCall(GameTooltip)
+check("TSM rows follow the Auctionator rows", tooltipLines[4] == "TSM market value=80c" and tooltipLines[5] == "Last price vs TSM=<green>+50%</>", table.concat(tooltipLines, " | "))
+TSM_API = nil
+
 -- ===== Memoised average =====
 runNextFrame()
 historyBuilds = 0
