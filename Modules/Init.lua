@@ -3,6 +3,7 @@ local _, AP = ...
 -- Setting defaults; the settings panel uses the same keys as its variable keys
 AP.Defaults = {
     sellThresholdPct = 15,
+    dealThresholdPct = 20,
     showSimilar = true,
     levelTolerance = 2,
     dpsTolerancePct = 20,
@@ -15,14 +16,14 @@ local seededDB
 
 -- Account-wide store for the settings and the shopping stat filter. Seeds missing defaults itself, so readers never see nil even before the settings panel registers
 function AP.DB()
-    if type(AuctionatorPlusDB) ~= "table" then
-        AuctionatorPlusDB = {}
+    if type(AuctionatorMarketValueDB) ~= "table" then
+        AuctionatorMarketValueDB = {}
     end
-    if seededDB ~= AuctionatorPlusDB then
+    if seededDB ~= AuctionatorMarketValueDB then
         for key, value in pairs(AP.Defaults) do
-            if AuctionatorPlusDB[key] == nil then AuctionatorPlusDB[key] = value end
+            if AuctionatorMarketValueDB[key] == nil then AuctionatorMarketValueDB[key] = value end
         end
-        seededDB = AuctionatorPlusDB
+        seededDB = AuctionatorMarketValueDB
     end
-    return AuctionatorPlusDB
+    return AuctionatorMarketValueDB
 end

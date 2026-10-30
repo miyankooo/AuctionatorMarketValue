@@ -1,4 +1,4 @@
-# Auctionator Plus
+# Auctionator Market Value
 
 Adds price history, a relative value column, a stat filter and similar-item pricing to Auctionator in WoW Forever.
 
@@ -13,9 +13,9 @@ Adds price history, a relative value column, a stat filter and similar-item pric
 
 ## Installation
 
-1. Install it with the CurseForge app under WoW Forever, or copy the `AuctionatorPlus` folder into `World of Warcraft/_classic_beta_/Interface/AddOns/`.
+1. Install it with the CurseForge app under WoW Forever, or copy the `AuctionatorMarketValue` folder into `World of Warcraft/_forever_/Interface/AddOns/`.
 2. Restart the game or type `/reload`.
-3. Enable Auctionator Plus in the AddOns list.
+3. Enable Auctionator Market Value in the AddOns list.
 
 ## Usage
 
@@ -29,12 +29,12 @@ Adds price history, a relative value column, a stat filter and similar-item pric
 
 | Command | Does |
 | --- | --- |
-| `/auctionatorplus` | Opens the settings |
-| `/aplus` | Short form of `/auctionatorplus` |
+| `/auctionatormarketvalue` | Opens the settings |
+| `/amv` | Short form of `/auctionatormarketvalue` |
 
 ## Settings
 
-Open them with `/aplus`, from the addon menu at the minimap or under Options, AddOns. The range settings grey out while Show Similar Items is off.
+Open them with `/amv`, from the addon menu at the minimap or under Options, AddOns. The range settings grey out while Show Similar Items is off.
 
 | Setting | Default | Does |
 | --- | --- | --- |

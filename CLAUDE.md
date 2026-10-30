@@ -1,4 +1,4 @@
-# AuctionatorPlus
+# AuctionatorMarketValue
 
 ## Target
 
@@ -30,4 +30,4 @@
 ## Checks
 
 - Run `luac -p` on every Lua file and `lua Tests/Load.lua` after a change.
-- Test in game with only Auctionator and AuctionatorPlus enabled, after `/console scriptErrors 1` and `/reload`.
+- Test in game with only Auctionator and AuctionatorMarketValue enabled, after `/console scriptErrors 1` and `/reload`.
