@@ -1,15 +1,15 @@
 ## Interface: 16001
-## Title: Auctionator Plus
+## Title: Auctionator Market Value
 ## Notes: Adds price history, a relative value column, stat filters and similar-item pricing to Auctionator.
 ## Author: miyanko
 ## Version: 1.0.0
 ## Category: Auctions
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## Dependencies: Auctionator
-## SavedVariables: AuctionatorPlusDB
-## AddonCompartmentFunc: AuctionatorPlus_CompartmentClick
-## AddonCompartmentFuncOnEnter: AuctionatorPlus_CompartmentEnter
-## AddonCompartmentFuncOnLeave: AuctionatorPlus_CompartmentLeave
+## SavedVariables: AuctionatorMarketValueDB
+## AddonCompartmentFunc: AuctionatorMarketValue_CompartmentClick
+## AddonCompartmentFuncOnEnter: AuctionatorMarketValue_CompartmentEnter
+## AddonCompartmentFuncOnLeave: AuctionatorMarketValue_CompartmentLeave
 
 Libs\LibStub\LibStub.lua
 Libs\LibNativeUI-1.0\LibNativeUI-1.0.lua

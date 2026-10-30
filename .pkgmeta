@@ -1,4 +1,4 @@
-package-as: AuctionatorPlus
+package-as: AuctionatorMarketValue
 manual-changelog: CHANGELOG.md
 
 ignore:

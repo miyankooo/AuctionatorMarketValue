@@ -219,7 +219,7 @@ end
 
 -- Parented to the shopping frame so it hides with the Auction House. Escape closes it with the Auction House through UISpecialFrames; an addon-registered GameMenuEsc handler would taint Escape in combat
 local function buildDialog()
-    dialog = UI.CreateDialog({ name = "AuctionatorPlusStatFilterDialog", title = "Stat Filter", width = DIALOG_WIDTH, parent = AuctionatorShoppingFrame })
+    dialog = UI.CreateDialog({ name = "AuctionatorMarketValueStatFilterDialog", title = "Stat Filter", width = DIALOG_WIDTH, parent = AuctionatorShoppingFrame })
 
     dialog.statLogic = "AND"
     local logicDropdown = UI.CreateDropdown(dialog, DROPDOWN_WIDTH)

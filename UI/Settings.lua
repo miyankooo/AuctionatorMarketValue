@@ -5,9 +5,10 @@ local UI = LibStub("LibNativeUI-1.0")
 -- Options page under Options > AddOns
 AP.SettingsPanel = {}
 
-local TITLE = "Auctionator Plus"
+local TITLE = "Auctionator Market Value"
 
 local function plusPercent(value) return ("+%d%%"):format(value) end
+local function minusPercent(value) return ("-%d%%"):format(value) end
 local function bandPercent(value) return ("±%d%%"):format(value) end
 
 local function levels(value) return ("±%d levels"):format(value) end
@@ -17,6 +18,9 @@ local function plusMinus(value) return ("±%d"):format(value) end
 local SECTIONS = {
     { "Bag Glow", {
         { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above the 14-day average.", 5, 100, 1, plusPercent },
+    } },
+    { "Deals", {
+        { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the 14-day average.", 5, 100, 1, minusPercent },
     } },
     { "Similar Items", {
         { "showSimilar", "Show Similar Items", "With gear or a bag in the sale slot, comparable auctions join the current prices, marked Similar. Click one to undercut it.", checkbox = true },
@@ -32,7 +36,7 @@ local category
 local function addControl(db, def)
     local key, label, tooltip, minValue, maxValue, step, formatter = unpack(def)
     local varType = def.checkbox and Settings.VarType.Boolean or Settings.VarType.Number
-    local setting = Settings.RegisterAddOnSetting(category, "AUCTIONATORPLUS_" .. key:upper(), key, db, varType, label, AP.Defaults[key])
+    local setting = Settings.RegisterAddOnSetting(category, "AUCTIONATORMARKETVALUE_" .. key:upper(), key, db, varType, label, AP.Defaults[key])
     if def.checkbox then
         return Settings.CreateCheckbox(category, setting, tooltip)
     end
@@ -91,22 +95,22 @@ function AP.SettingsPanel.Open()
     Settings.OpenToCategory(category:GetID())
 end
 
--- /ap already belongs to Blizzard's commentator commands, so the short form is /aplus.
-SLASH_AUCTIONATORPLUS1, SLASH_AUCTIONATORPLUS2 = "/auctionatorplus", "/aplus"
-SlashCmdList.AUCTIONATORPLUS = AP.SettingsPanel.Open
+-- /ap already belongs to Blizzard's commentator commands, so the short form is /amv.
+SLASH_AUCTIONATORMARKETVALUE1, SLASH_AUCTIONATORMARKETVALUE2 = "/auctionatormarketvalue", "/amv"
+SlashCmdList.AUCTIONATORMARKETVALUE = AP.SettingsPanel.Open
 
 -- Addon Compartment entry points named in the toc. Blizzard calls them with the addon name first, then the menu row.
-function AuctionatorPlus_CompartmentClick()
+function AuctionatorMarketValue_CompartmentClick()
     AP.SettingsPanel.Open()
 end
 
-function AuctionatorPlus_CompartmentEnter(_, menuButton)
+function AuctionatorMarketValue_CompartmentEnter(_, menuButton)
     GameTooltip:SetOwner(menuButton, "ANCHOR_LEFT")
     GameTooltip_SetTitle(GameTooltip, TITLE)
     GameTooltip_AddInstructionLine(GameTooltip, "Click to open the settings.")
     GameTooltip:Show()
 end
 
-function AuctionatorPlus_CompartmentLeave()
+function AuctionatorMarketValue_CompartmentLeave()
     GameTooltip:Hide()
 end

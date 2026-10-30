@@ -218,10 +218,10 @@ Auctionator = {
 
 -- ===== Load in toc order =====
 local AP = {}
-for line in io.lines("AuctionatorPlus.toc") do
+for line in io.lines("AuctionatorMarketValue.toc") do
     if line:match("%.lua$") then
         local path = line:gsub("\\", "/")
-        assert(loadfile(path))("AuctionatorPlus", AP)
+        assert(loadfile(path))("AuctionatorMarketValue", AP)
     end
 end
 check("files load in toc order", true)
@@ -241,7 +241,7 @@ AuctionatorSellingFrame.SaleItemFrame = CreateFrame("Frame")
 AuctionatorSellingFrame.SaleItemFrame.Update = function() end
 
 -- ===== Settings =====
-AuctionatorPlusDB = nil
+AuctionatorMarketValueDB = nil
 AP.SettingsPanel.Register()
 check("Show Similar Items setting on by default", registered.showSimilar and registered.showSimilar.default == true and AP.DB().showSimilar == true)
 check("no TSM or Guide settings", registered.glowRequireBoth == nil and registered.guideAtLogin == nil)
@@ -271,7 +271,7 @@ AP.Trend.AverageFor("item:25")
 check("next frame rebuilds", historyBuilds == 2, historyBuilds)
 
 -- ===== Stat filter =====
-local dialogName = "AuctionatorPlusStatFilterDialog"
+local dialogName = "AuctionatorMarketValueStatFilterDialog"
 check("dialog not built before the first click", _G[dialogName] == nil)
 
 -- The module keeps its widgets in locals, so the test reads them from the closures
@@ -298,16 +298,16 @@ check("dialog height on the grid", dialog.height == 456, dialog.height)
 local strength = dialog.statChecks.strength
 strength:SetChecked(true)
 strength.scripts.OnClick(strength)
-check("ticking a stat applies at once", AuctionatorPlusDB.shoppingStatFilter and AuctionatorPlusDB.shoppingStatFilter.stats.strength == true)
+check("ticking a stat applies at once", AuctionatorMarketValueDB.shoppingStatFilter and AuctionatorMarketValueDB.shoppingStatFilter.stats.strength == true)
 check("button shows the count", button.text == "Filter (1)", button.text)
 check("button width never changes", button.width == width)
 check("Clear All enabled with a filter", dialog.clearButton:IsEnabled())
 
 dialog.logicDropdown.setSelected("OR")
-check("logic change applies at once", AuctionatorPlusDB.shoppingStatFilter.logic == "OR")
+check("logic change applies at once", AuctionatorMarketValueDB.shoppingStatFilter.logic == "OR")
 
 dialog.clearButton.scripts.OnClick(dialog.clearButton)
-check("Clear All empties the filter", AuctionatorPlusDB.shoppingStatFilter == nil and not strength:GetChecked())
+check("Clear All empties the filter", AuctionatorMarketValueDB.shoppingStatFilter == nil and not strength:GetChecked())
 check("button back to Filter", button.text == "Filter", button.text)
 check("Clear All disabled without a filter", not dialog.clearButton:IsEnabled())
 
