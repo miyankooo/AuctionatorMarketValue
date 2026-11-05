@@ -140,22 +140,29 @@ function AP.Trend.Mode()
     return AP.Trend.UP_RED
 end
 
--- The average, then the last known price against it, then TSM's market value and the same comparison when TSM has one;
--- nothing without either, and Auctionator's own lines are left untouched
+-- A blank line and a gold heading start each source's block, so Auctionator's and TSM's figures read apart
+local function addBlock(tooltip, heading)
+    GameTooltip_AddBlankLineToTooltip(tooltip)
+    GameTooltip_AddNormalLine(tooltip, heading)
+end
+
+-- An Auctionator block with the average and the last known price against it, then a TSM block with TSM's market value
+-- and the same comparison when TSM has one; nothing without either, and Auctionator's own lines are left untouched
 local function addPriceRows(tooltip, itemLink)
     local average, days = AP.Trend.AverageFor(itemLink)
     local tsmMarket = AP.TSM.MarketValueFor(itemLink)
     if not (average or tsmMarket) then return end
 
     local auction = AP.Bridge.AuctionPrice(itemLink)
-    GameTooltip_AddBlankLineToTooltip(tooltip)
     if average then
+        addBlock(tooltip, "Auctionator")
         addRow(tooltip, ("14-day average (%d %s)"):format(days, days == 1 and "day" or "days"), AP.Bridge.Money(average))
         addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), AP.Trend.Mode(), days))
     end
     if tsmMarket then
-        addRow(tooltip, "TSM market value", AP.Bridge.Money(tsmMarket))
-        addRow(tooltip, "Last price vs TSM", AP.Trend.Colorize(AP.Trend.Percent(auction, tsmMarket), AP.Trend.Mode()))
+        addBlock(tooltip, "TSM")
+        addRow(tooltip, "Market value", AP.Bridge.Money(tsmMarket))
+        addRow(tooltip, "Last price vs market value", AP.Trend.Colorize(AP.Trend.Percent(auction, tsmMarket), AP.Trend.Mode()))
     end
 
     -- Resize so the added lines render inside the tooltip frame

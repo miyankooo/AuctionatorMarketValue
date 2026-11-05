@@ -108,6 +108,7 @@ TooltipUtil = { GetDisplayedItem = function() return "Worn Sword", "item:25" end
 local tooltipLines = {}
 function GameTooltip_AddBlankLineToTooltip() tooltipLines[#tooltipLines + 1] = "" end
 function GameTooltip_AddColoredDoubleLine(_, left, right) tooltipLines[#tooltipLines + 1] = left .. "=" .. right end
+function GameTooltip_AddNormalLine(_, text) tooltipLines[#tooltipLines + 1] = "# " .. text end
 function GameTooltip_SetTitle() end
 function GameTooltip_AddHighlightLine() end
 function GameTooltip_AddErrorLine() end
@@ -269,16 +270,16 @@ check("Shopping filter ensure", AP.ShoppingFilter.Ensure())
 
 -- ===== Tooltip rows =====
 tooltipPostCall(GameTooltip)
-check("tooltip shows the two rows", tooltipLines[2] == "14-day average (3 days)=100c" and tooltipLines[3] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
+check("tooltip shows the Auctionator block", tooltipLines[2] == "# Auctionator" and tooltipLines[3] == "14-day average (3 days)=100c" and tooltipLines[4] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
 historyDays = 1
 runNextFrame()
 tooltipLines = {}
 tooltipPostCall(GameTooltip)
-check("thin history greys the percentage", tooltipLines[2] == "14-day average (1 day)=100c" and tooltipLines[3] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
+check("thin history greys the percentage", tooltipLines[3] == "14-day average (1 day)=100c" and tooltipLines[4] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
 historyDays = 3
 
 -- ===== TSM rows =====
-check("no TSM rows without TSM", #tooltipLines == 3, #tooltipLines)
+check("no TSM block without TSM", #tooltipLines == 4, #tooltipLines)
 TSM_API = {
     ToItemString = function() return "i:25" end,
     GetCustomPriceValue = function(source) return source == "DBMarket" and 80 or nil end,
@@ -286,7 +287,7 @@ TSM_API = {
 tooltipLines = {}
 runNextFrame()
 tooltipPostCall(GameTooltip)
-check("TSM rows follow the Auctionator rows", tooltipLines[4] == "TSM market value=80c" and tooltipLines[5] == "Last price vs TSM=<green>+50%</>", table.concat(tooltipLines, " | "))
+check("the TSM block follows the Auctionator block", tooltipLines[5] == "" and tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
 TSM_API = nil
 
 -- ===== Memoised average =====
