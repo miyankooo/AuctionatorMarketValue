@@ -2,7 +2,7 @@
 ## Title: Auctionator Market Value
 ## Notes: Adds price history, a relative value column, stat filters and similar-item pricing to Auctionator.
 ## Author: miyanko
-## Version: 1.0.0
+## Version: @project-version@
 ## Category: Auctions
 ## IconTexture: Interface\Icons\ability_racial_timeismoney
 ## Dependencies: Auctionator
