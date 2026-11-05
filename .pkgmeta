@@ -11,3 +11,6 @@ ignore:
 
 required-dependencies:
   - auctionator
+
+optional-dependencies:
+  - tradeskill-master
