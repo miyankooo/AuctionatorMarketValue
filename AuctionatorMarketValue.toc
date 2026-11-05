@@ -4,7 +4,7 @@
 ## Author: miyanko
 ## Version: 1.0.0
 ## Category: Auctions
-## IconTexture: Interface\Icons\INV_Misc_Coin_01
+## IconTexture: Interface\Icons\ability_racial_timeismoney
 ## Dependencies: Auctionator
 ## OptionalDeps: TradeSkillMaster
 ## SavedVariables: AuctionatorMarketValueDB
