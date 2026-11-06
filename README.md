@@ -7,7 +7,7 @@ A WoW Forever addon that shows how every auction price compares to its market va
 ## Features
 
 - Tooltips show an item's 14-day average and how its last price compares.
-- TradeSkillMaster support: tooltips also show TSM's market value and how the last price compares to it.
+- TradeSkillMaster support: tooltips also show TSM's market value and how the last price compares to it, from the TSM addon or, with the addon off, from the TSM desktop app's data.
 - Auction lists show each price as a percentage of the average, and deals glow green.
 - A Relative column in Auctionator's Shopping and Selling tabs.
 - A price you type to sell shows its percentage before you post.
@@ -19,7 +19,7 @@ A WoW Forever addon that shows how every auction price compares to its market va
 ## Usage
 
 1. Open the Auction House and click Full Scan in Auctionator's Shopping tab, or Sale Scan in its Selling tab, so prices exist.
-2. Hover an item to see its average. A gray percentage rests on fewer than 3 days of prices. With TradeSkillMaster installed, the TSM rows appear on their own.
+2. Hover an item to see its average. A gray percentage rests on fewer than 3 days of prices. With the TradeSkillMaster addon or its desktop app installed, the TSM rows appear on their own.
 3. Browse and shop as usual. Green rows are deals. Sort by Relative to find the cheapest listings.
 4. In Shopping, click Filter and tick the stats you want.
 5. Type `/amv`, or pick Auctionator Market Value in the addon menu, to set the Sell Threshold, the Deal Threshold and the Similar Items ranges.

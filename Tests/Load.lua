@@ -100,7 +100,15 @@ Enum = {
     ItemClass = { Armor = 4, Weapon = 2, Container = 1, Quiver = 11 },
     AuctionHouseSortOrder = { Price = 0 },
     TooltipDataType = { Item = 0 },
+    GameRule = { HardcoreRuleset = 10, PvPRuleset = 213, RPRuleset = 214 },
 }
+C_GameRules = { IsGameRuleActive = function(rule) return rule == Enum.GameRule.PvPRuleset end }
+function UnitFactionGroup() return "Alliance", "Alliance" end
+function strsplit(sep, text)
+    local parts = {}
+    for part in (text .. sep):gmatch("(.-)" .. sep) do parts[#parts + 1] = part end
+    return table.unpack(parts)
+end
 
 local tooltipPostCall
 TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) tooltipPostCall = fn end }
@@ -238,7 +246,8 @@ Auctionator = {
 -- ===== Load in toc order =====
 local AP = {}
 for line in io.lines("AuctionatorMarketValue.toc") do
-    if line:match("%.lua$") then
+    -- Other addons' files, like TSM's AppData.lua, are absent here, as in a game without them
+    if line:match("%.lua$") and not line:match("^#") and not line:match("^%.%.") then
         local path = line:gsub("\\", "/")
         assert(loadfile(path))("AuctionatorMarketValue", AP)
     end
@@ -297,7 +306,35 @@ tooltipLines = {}
 runNextFrame()
 tooltipPostCall(GameTooltip)
 check("the TSM block follows the Auctionator block", tooltipLines[5] == "" and tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
+-- Launch day on a fresh realm: TSM loaded with no scan yet, or not ready and throwing
+for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
+    TSM_API.GetCustomPriceValue = lookup
+    tooltipLines = {}
+    runNextFrame()
+    tooltipPostCall(GameTooltip)
+    check("TSM without a figure keeps only the Auctionator block", #tooltipLines == 4, table.concat(tooltipLines, " | "))
+end
 TSM_API = nil
+
+-- ===== TSM app data =====
+-- With the TSM addon off, the same figure comes from the TSM app's AppData.lua, for this ruleset, faction and region only
+local function block(fields, rows) return ("return {downloadTime=1,fields={%s},data={%s}}"):format(fields, rows) end
+TSM_API = {}
+AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","marketValue"', "{25,1}"))
+TSM_API = nil
+check("app data is skipped while the TSM addon is loaded", AP.TSM.MarketValueFor("item:25") == nil)
+AP.LoadData("APP_INFO", "Global", "return {}")
+AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "Normal-Alliance", block('"itemString","marketValue"', "{25,99}"))
+AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","minBuyout","marketValue"', '{25,1,2g},{"i:26::i100",1,1}'))
+AP.LoadData("AUCTIONDB_COMMODITY_DATA", "Forever-HC-EU", block('"itemString","marketValue"', "{27,5}"))
+AP.LoadData("AUCTIONDB_COMMODITY_DATA", "Forever-EU", block('"itemString","marketValue"', "{27,10000001}"))
+check("app data reads this realm's market value", AP.TSM.MarketValueFor({ itemID = 25 }) == 80, AP.TSM.MarketValueFor({ itemID = 25 }))
+check("app data unpacks values over 32 bits", AP.TSM.MarketValueFor("item:27") == 1 + 32 * 2 ^ 30, AP.TSM.MarketValueFor("item:27"))
+check("app data has no figure for unknown items", AP.TSM.MarketValueFor("item:28") == nil)
+tooltipLines = {}
+runNextFrame()
+tooltipPostCall(GameTooltip)
+check("app data fills the TSM block without the TSM addon", tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
 
 -- ===== Memoised average =====
 runNextFrame()

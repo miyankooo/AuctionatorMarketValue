@@ -19,6 +19,8 @@ Libs\LibNativeUI-1.0\LibNativeUI-1.0.lua
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
+# The TSM app's price data, kept only while the TSM addon is off (Modules\TSM.lua)
+..\TradeSkillMaster_AppHelper\AppData.lua
 Modules\ItemStats.lua
 Modules\PriceHistory.lua
 Modules\TrendColumn.lua
