@@ -401,6 +401,18 @@ check("Clear All enabled with a filter", dialog.clearButton:IsEnabled())
 dialog.logicDropdown.setSelected("OR")
 check("logic change applies at once", AuctionatorMarketValueDB.shoppingStatFilter.logic == "OR")
 
+local tooltipBuilds = 0
+C_TooltipInfo = { GetItemKey = function()
+    tooltipBuilds = tooltipBuilds + 1
+    return { lines = { { leftText = "+5 Strength" } } }
+end }
+local shopping = AuctionatorShoppingFrame.DataProvider
+shopping:AppendEntries({ { itemKey = { itemID = 25 } } })
+check("a matching result is kept", #shopping.rows == 1, #shopping.rows)
+dialog.logicDropdown.setSelected("AND")
+check("re-filtering reuses the stats without a new tooltip", #shopping.rows == 1 and tooltipBuilds == 1, tooltipBuilds)
+C_TooltipInfo = nil
+
 dialog.clearButton.scripts.OnClick(dialog.clearButton)
 check("Clear All empties the filter", AuctionatorMarketValueDB.shoppingStatFilter == nil and not strength:GetChecked())
 check("button back to Filter", button.text == "Filter", button.text)

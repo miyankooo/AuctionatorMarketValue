@@ -85,8 +85,7 @@ local function hasStat(present, key)
     return key:match("damage$") ~= nil and present.spellpower ~= nil
 end
 
-local function statsMatch(itemText, filter)
-    local present = AP.ItemStats.FullStatSet(itemText)
+local function statsMatch(present, filter)
     if filter.logic == "OR" then
         for key in pairs(filter.stats) do
             if hasStat(present, key) then return true end
@@ -108,10 +107,13 @@ local function entryMatches(entry, filter)
     local classID = select(6, AP.ItemStats.InstantInfo(itemRef))
     if not AP.Bridge.IsEquipment(classID) then return true, false end
 
-    local itemText = AP.ItemStats.Text(itemRef)
-    if not itemText then return false, true end
-
-    return statsMatch(itemText, filter), false
+    -- Kept on the entry, so the re-filter on every tick never builds the same tooltip again
+    if not entry.apStats then
+        local itemText = AP.ItemStats.Text(itemRef)
+        if not itemText then return false, true end
+        entry.apStats = AP.ItemStats.FullStatSet(itemText)
+    end
+    return statsMatch(entry.apStats, filter), false
 end
 
 local function filterLabel(count)
