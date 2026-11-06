@@ -26,6 +26,7 @@ Modules\BagGlow.lua
 Modules\SimilarItems.lua
 Modules\ShoppingFilter.lua
 Modules\SaleScan.lua
+Modules\FullScanButton.lua
 Modules\AuctionHouseLists.lua
 Modules\PostingCheck.lua
 UI\Settings.lua

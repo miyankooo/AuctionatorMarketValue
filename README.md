@@ -14,10 +14,11 @@ A WoW Forever addon that shows how every auction price compares to its market va
 - A Filter button in Shopping narrows gear to the stats you want.
 - Similar auctions help you price gear and bags.
 - Sale Scan refreshes the prices of everything in your bags with one click.
+- A Full Scan button on Auctionator's Shopping tab refreshes every price on the Auction House, with its progress on the button.
 
 ## Usage
 
-1. Open the Auction House and click Sale Scan in Auctionator's Selling tab, or run Auctionator's Full Scan, so prices exist.
+1. Open the Auction House and click Full Scan in Auctionator's Shopping tab, or Sale Scan in its Selling tab, so prices exist.
 2. Hover an item to see its average. A gray percentage rests on fewer than 3 days of prices. With TradeSkillMaster installed, the TSM rows appear on their own.
 3. Browse and shop as usual. Green rows are deals. Sort by Relative to find the cheapest listings.
 4. In Shopping, click Filter and tick the stats you want.

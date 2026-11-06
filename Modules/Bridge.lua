@@ -96,6 +96,20 @@ function AP.Bridge.SelectPrice(price)
 end
 
 -- ===== Auction house =====
+-- Whether Auctionator's "Alternate Scan Mode" option is on: Auctionator then runs the replicate scan, allowed once per
+-- 15 minutes, and otherwise (its default) the incremental browse scan
+function AP.Bridge.IsReplicateScan()
+    return Auctionator.Config.Get(Auctionator.Config.Options.REPLICATE_SCAN) == true
+end
+
+-- Start the full scan the way Auctionator's own Full Scan button does (Source_ModernAH ScanButton.lua); both scan
+-- frames exist once the Auction House has opened
+function AP.Bridge.StartFullScan()
+    local state = Auctionator.State
+    local scanFrame = AP.Bridge.IsReplicateScan() and state.FullScanFrameRef or state.IncrementalScanFrameRef
+    if scanFrame then scanFrame:InitiateScan() end
+end
+
 -- Category browse through Auctionator's throttle queue
 function AP.Bridge.Browse(query)
     pcall(Auctionator.AH.SendBrowseQuery, query)

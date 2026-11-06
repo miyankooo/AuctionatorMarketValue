@@ -50,6 +50,7 @@ local FILTER_ROWS = math.ceil(#STAT_ORDER / FILTER_COLUMNS)
 local COLUMN_WIDTH = 208
 local DROPDOWN_WIDTH = 120
 local DIALOG_WIDTH = 2 * UI.Space.dialog + FILTER_COLUMNS * COLUMN_WIDTH
+local BUTTON_GAP = 4
 
 local filterButton, dialog
 local provider, originalAppend
@@ -248,17 +249,16 @@ local function buildDialog()
     AuctionatorShoppingFrame:HookScript("OnHide", function() dialog:Hide() end)
 end
 
--- Bottom-left of the results inset, on the Export Results row. Parented to that button so it hides with it whenever a buy screen covers the results. Sized once for the longest label, so the count never moves it
+-- Right of the Full Scan button on the Export Results row. Parented to Export Results so it hides with it whenever a buy screen covers the results. Sized once for the longest label, so the count never moves it
 local function ensureButton()
     if filterButton then return true end
     local shoppingFrame = AuctionatorShoppingFrame
-    local inset = shoppingFrame and shoppingFrame.ShoppingResultsInset
     local exportButton = shoppingFrame and shoppingFrame.ExportCSV
-    if not inset or not exportButton then return false end
+    local fullScanButton = AP.FullScanButton.Button()
+    if not exportButton or not fullScanButton then return false end
 
     filterButton = UI.CreateButton(exportButton, filterLabel(#STAT_ORDER))
-    filterButton:SetPoint("LEFT", inset, "LEFT", 0, 0)
-    filterButton:SetPoint("BOTTOM", exportButton, "BOTTOM", 0, 0)
+    filterButton:SetPoint("LEFT", fullScanButton, "RIGHT", BUTTON_GAP, 0)
     filterButton:SetScript("OnClick", function()
         if not dialog then buildDialog() end
         dialog:SetShown(not dialog:IsShown())

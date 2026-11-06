@@ -4,6 +4,7 @@ local _, AP = ...
 local ENSURES = {
     AP.SimilarItems.Ensure,
     AP.SaleScan.Ensure,
+    AP.FullScanButton.Ensure,
     AP.ShoppingFilter.Ensure,
 }
 

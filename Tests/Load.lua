@@ -46,6 +46,7 @@ function frameMethods:Click(button) self.scripts.OnClick(self, button or "LeftBu
 function frameMethods:CreateFontString() return CreateFrame("FontString", nil, self) end
 function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) end
 function frameMethods:SetupMenu(fn) self.menu = fn end
+function frameMethods:SetPoint(point, relativeTo, relativePoint, x, y) self.points = self.points or {} self.points[point] = { relativeTo, relativePoint, x, y } end
 
 function CreateFrame(kind, name, parent, template)
     local frame = setmetatable({ scripts = {}, shown = true, owner = parent, kind = kind, template = template }, frameMethods)
@@ -194,6 +195,8 @@ function eventBus:Fire(_, eventName, ...)
     return self
 end
 
+local config, scansStarted = {}, { incremental = 0, replicate = 0 }
+
 local function events(...)
     local set = {}
     for _, name in ipairs({ ... }) do set[name] = name end
@@ -220,11 +223,16 @@ Auctionator = {
             return rows
         end,
     },
-    State = {},
+    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3" } },
+    State = {
+        IncrementalScanFrameRef = { InitiateScan = function() scansStarted.incremental = scansStarted.incremental + 1 end },
+        FullScanFrameRef = { InitiateScan = function() scansStarted.replicate = scansStarted.replicate + 1 end },
+    },
     AH = { Events = events("ItemSearchResultsReady", "CommoditySearchResultsReady") },
     Selling = { Events = events("SellSearchStart", "ClearBagItem", "PriceSelected") },
     Shopping = { Tab = { Events = events("SearchStart", "SearchEnd") } },
-    IncrementalScan = { Events = events("ScanStart", "ScanComplete", "ScanFailed") },
+    IncrementalScan = { Events = events("ScanStart", "ScanProgress", "ScanComplete", "ScanFailed") },
+    FullScan = { Events = { ScanStart = "replicate_scan_start", ScanProgress = "replicate_scan_progress", ScanComplete = "replicate_scan_complete", ScanFailed = "replicate_scan_failed" } },
 }
 
 -- ===== Load in toc order =====
@@ -266,6 +274,7 @@ AP.DB().showSimilar = true
 -- ===== AH open =====
 check("Similar ensure", AP.SimilarItems.Ensure())
 check("Sale Scan ensure", AP.SaleScan.Ensure())
+check("Full Scan ensure", AP.FullScanButton.Ensure())
 check("Shopping filter ensure", AP.ShoppingFilter.Ensure())
 
 -- ===== Tooltip rows =====
@@ -315,6 +324,26 @@ local function upvalue(fn, name)
 end
 local ensureButton = upvalue(AP.ShoppingFilter.Ensure, "ensureButton")
 local button = upvalue(ensureButton, "filterButton")
+-- ===== Full Scan button =====
+local fullScan = AP.FullScanButton.Button()
+check("Full Scan sits bottom-left on the Export Results row", fullScan.text == "Full Scan" and fullScan.points.LEFT[1] == AuctionatorShoppingFrame.ShoppingResultsInset and fullScan.points.BOTTOM[1] == AuctionatorShoppingFrame.ExportCSV)
+check("Filter sits right of Full Scan", button.points.LEFT[1] == fullScan and button.points.LEFT[2] == "RIGHT" and button.points.LEFT[3] % 4 == 0)
+fullScan:Click()
+check("click starts Auctionator's incremental scan by default", scansStarted.incremental == 1 and scansStarted.replicate == 0)
+config.replicate_scan_3 = true
+fullScan:Click()
+check("Alternate Scan Mode starts the replicate scan", scansStarted.replicate == 1)
+config.replicate_scan_3 = nil
+AuctionatorShoppingFrame.searchRunning = true
+fullScan:Click()
+check("no incremental scan during a shopping search", scansStarted.incremental == 1)
+AuctionatorShoppingFrame.searchRunning = nil
+Auctionator.EventBus:Fire(nil, "ScanStart")
+Auctionator.EventBus:Fire(nil, "ScanProgress", 0.42)
+check("label shows the scan progress", fullScan.text == "Full Scan 42%", fullScan.text)
+Auctionator.EventBus:Fire(nil, "replicate_scan_complete")
+check("a finished scan shows green 100%", fullScan.text == "<green>Full Scan 100%</>", fullScan.text)
+
 check("filter button reads Filter and is 24 tall", button and button.text == "Filter" and button.height == 24, button and button.text)
 check("filter button sized for the longest label", button and button.width % 8 == 0 and button.width >= 64, button and button.width)
 local width = button.width
