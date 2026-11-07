@@ -14,7 +14,7 @@ AP.Defaults = {
 -- The table last seeded, so the defaults are filled once per saved table instead of on every call
 local seededDB
 
--- Account-wide store for the settings and the shopping stat filter. Seeds missing defaults itself, so readers never see nil even before the settings panel registers
+-- Account-wide store for the settings. Seeds missing defaults itself, so readers never see nil even before the settings panel registers
 function AP.DB()
     if type(AuctionatorMarketValueDB) ~= "table" then
         AuctionatorMarketValueDB = {}

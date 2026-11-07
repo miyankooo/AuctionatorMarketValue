@@ -1,5 +1,5 @@
 -- Offline smoke test: loads every file in toc order against stubs of the WoW API and Auctionator, opens the
--- Auction House once and checks the tooltip rows, the stat filter, comparable clicks, Sale Scan and the parser.
+-- Auction House once and checks the tooltip rows, the Full Scan button, comparable clicks, Sale Scan and the parser.
 -- Run from the addon folder: lua Tests/Load.lua
 
 local failures = 0
@@ -58,7 +58,6 @@ end
 
 UIParent = CreateFrame("Frame")
 GameTooltip, ItemRefTooltip = CreateFrame("GameTooltip"), CreateFrame("GameTooltip")
-UISpecialFrames = {}
 
 -- ===== WoW API =====
 strmatch = string.match
@@ -89,7 +88,6 @@ HIGHLIGHT_FONT_COLOR, GREEN_FONT_COLOR, RED_FONT_COLOR = color("white"), color("
 GRAY_FONT_COLOR, YELLOW_FONT_COLOR, NORMAL_FONT_COLOR, WARNING_FONT_COLOR = color("gray"), color("yellow"), color("gold"), color("warn")
 ITEM_QUALITY_COLORS = { [2] = { color = color("uncommon") } }
 
-FILTER, CLEAR_ALL = "Filter", "Clear All"
 SPELL_STAT1_NAME, SPELL_STAT2_NAME, SPELL_STAT3_NAME, SPELL_STAT4_NAME, SPELL_STAT5_NAME = "Strength", "Agility", "Stamina", "Intellect", "Spirit"
 ITEM_SPELL_TRIGGER_ONEQUIP, ITEM_SPELL_TRIGGER_ONUSE, ITEM_SPELL_TRIGGER_ONPROC = "Equip:", "Use:", "Chance on hit:"
 ITEM_SET_BONUS, ITEM_SET_BONUS_GRAY = "Set: %s", "(%d) Set: %s"
@@ -284,7 +282,6 @@ AP.DB().showSimilar = true
 check("Similar ensure", AP.SimilarItems.Ensure())
 check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
-check("Shopping filter ensure", AP.ShoppingFilter.Ensure())
 
 -- ===== Tooltip rows =====
 tooltipPostCall(GameTooltip)
@@ -345,11 +342,7 @@ runNextFrame()
 AP.Trend.AverageFor("item:25")
 check("next frame rebuilds", historyBuilds == 2, historyBuilds)
 
--- ===== Stat filter =====
-local dialogName = "AuctionatorMarketValueStatFilterDialog"
-check("dialog not built before the first click", _G[dialogName] == nil)
-
--- The module keeps its widgets in locals, so the test reads them from the closures
+-- The modules keep their widgets in locals, so the test reads them from the closures
 local function upvalue(fn, name)
     local i = 1
     while true do
@@ -359,12 +352,10 @@ local function upvalue(fn, name)
         i = i + 1
     end
 end
-local ensureButton = upvalue(AP.ShoppingFilter.Ensure, "ensureButton")
-local button = upvalue(ensureButton, "filterButton")
+
 -- ===== Full Scan button =====
-local fullScan = AP.FullScanButton.Button()
+local fullScan = upvalue(AP.FullScanButton.Ensure, "scanButton")
 check("Full Scan sits bottom-left on the Export Results row", fullScan.text == "Full Scan" and fullScan.points.LEFT[1] == AuctionatorShoppingFrame.ShoppingResultsInset and fullScan.points.BOTTOM[1] == AuctionatorShoppingFrame.ExportCSV)
-check("Filter sits right of Full Scan", button.points.LEFT[1] == fullScan and button.points.LEFT[2] == "RIGHT" and button.points.LEFT[3] % 4 == 0)
 fullScan:Click()
 check("click starts Auctionator's incremental scan by default", scansStarted.incremental == 1 and scansStarted.replicate == 0)
 config.replicate_scan_3 = true
@@ -380,49 +371,6 @@ Auctionator.EventBus:Fire(nil, "ScanProgress", 0.42)
 check("label shows the scan progress", fullScan.text == "Full Scan 42%", fullScan.text)
 Auctionator.EventBus:Fire(nil, "replicate_scan_complete")
 check("a finished scan shows green 100%", fullScan.text == "<green>Full Scan 100%</>", fullScan.text)
-
-check("filter button reads Filter and is 24 tall", button and button.text == "Filter" and button.height == 24, button and button.text)
-check("filter button sized for the longest label", button and button.width % 8 == 0 and button.width >= 64, button and button.width)
-local width = button.width
-
-button:Click()
-local dialog = _G[dialogName]
-check("dialog built and shown", dialog and dialog:IsShown())
-check("dialog height on the grid", dialog.height == 456, dialog.height)
-
-local strength = dialog.statChecks.strength
-strength:SetChecked(true)
-strength.scripts.OnClick(strength)
-check("ticking a stat applies at once", AuctionatorMarketValueDB.shoppingStatFilter and AuctionatorMarketValueDB.shoppingStatFilter.stats.strength == true)
-check("button shows the count", button.text == "Filter (1)", button.text)
-check("button width never changes", button.width == width)
-check("Clear All enabled with a filter", dialog.clearButton:IsEnabled())
-
-dialog.logicDropdown.setSelected("OR")
-check("logic change applies at once", AuctionatorMarketValueDB.shoppingStatFilter.logic == "OR")
-
-local tooltipBuilds = 0
-C_TooltipInfo = { GetItemKey = function()
-    tooltipBuilds = tooltipBuilds + 1
-    return { lines = { { leftText = "+5 Strength" } } }
-end }
-local shopping = AuctionatorShoppingFrame.DataProvider
-shopping:AppendEntries({ { itemKey = { itemID = 25 } } })
-check("a matching result is kept", #shopping.rows == 1, #shopping.rows)
-dialog.logicDropdown.setSelected("AND")
-check("re-filtering reuses the stats without a new tooltip", #shopping.rows == 1 and tooltipBuilds == 1, tooltipBuilds)
-C_TooltipInfo = nil
-
-dialog.clearButton.scripts.OnClick(dialog.clearButton)
-check("Clear All empties the filter", AuctionatorMarketValueDB.shoppingStatFilter == nil and not strength:GetChecked())
-check("button back to Filter", button.text == "Filter", button.text)
-check("Clear All disabled without a filter", not dialog.clearButton:IsEnabled())
-
-check("Escape closes the dialog through UISpecialFrames", UISpecialFrames[#UISpecialFrames] == dialogName)
-AuctionatorShoppingFrame:Hide()
-check("dialog closes with the shopping tab", not dialog:IsShown())
-AuctionatorShoppingFrame:Show()
-check("dialog stays closed on the next visit", not dialog:IsShown())
 
 -- ===== Comparable click undercuts =====
 fired = {}

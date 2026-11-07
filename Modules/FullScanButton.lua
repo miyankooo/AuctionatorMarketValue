@@ -8,7 +8,7 @@ AP.FullScanButton = {}
 
 local BUTTON_LABEL = "Full Scan"
 
--- Fixed, so the progress label never resizes the button or moves the Filter button beside it
+-- Fixed, so the progress label never resizes the button
 local BUTTON_WIDTH = 112
 
 -- How long the final percentage stays before the label returns to Full Scan
@@ -114,9 +114,4 @@ function AP.FullScanButton.Ensure()
 
     scanButton = button
     return true
-end
-
--- The Filter button sits to the right of it
-function AP.FullScanButton.Button()
-    return scanButton
 end

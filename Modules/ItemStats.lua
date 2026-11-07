@@ -3,19 +3,14 @@ local _, AP = ...
 -- Stat parsing from the client's own tooltip data and stat strings
 AP.ItemStats = {}
 
--- Primary stats with Blizzard-localized labels; tokens match against the lowercased tooltip text
-AP.ItemStats.STAT_LABELS = {
-    strength  = SPELL_STAT1_NAME,
-    agility   = SPELL_STAT2_NAME,
-    stamina   = SPELL_STAT3_NAME,
-    intellect = SPELL_STAT4_NAME,
-    spirit    = SPELL_STAT5_NAME,
+-- Primary stat names, lowercased to match the lowercased tooltip text
+local STAT_TOKENS = {
+    strength = SPELL_STAT1_NAME:lower(),
+    agility = SPELL_STAT2_NAME:lower(),
+    stamina = SPELL_STAT3_NAME:lower(),
+    intellect = SPELL_STAT4_NAME:lower(),
+    spirit = SPELL_STAT5_NAME:lower(),
 }
-
-local STAT_TOKENS = {}
-for key, label in pairs(AP.ItemStats.STAT_LABELS) do
-    STAT_TOKENS[key] = label:lower()
-end
 
 -- The item id of an auction item key, else the link or item string as given
 local function itemOf(itemRef)

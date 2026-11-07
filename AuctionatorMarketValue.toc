@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Auctionator Market Value
-## Notes: Adds price history, a relative value column, stat filters and similar-item pricing to Auctionator.
+## Notes: Adds price history, a relative value column and similar-item pricing to Auctionator.
 ## Author: miyanko
 ## Version: @project-version@
 ## Category: Auctions
@@ -26,7 +26,6 @@ Modules\PriceHistory.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua
 Modules\SimilarItems.lua
-Modules\ShoppingFilter.lua
 Modules\SaleScan.lua
 Modules\FullScanButton.lua
 Modules\AuctionHouseLists.lua
