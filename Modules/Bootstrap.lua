@@ -18,12 +18,7 @@ local function ensureButtons(attempt)
 end
 
 local bootstrap = CreateFrame("Frame")
-bootstrap:RegisterEvent("PLAYER_LOGIN")
 bootstrap:RegisterEvent("AUCTION_HOUSE_SHOW")
-bootstrap:SetScript("OnEvent", function(_, event)
-    if event == "PLAYER_LOGIN" then
-        AP.SettingsPanel.Register()
-    elseif event == "AUCTION_HOUSE_SHOW" then
-        ensureButtons(1)
-    end
+bootstrap:SetScript("OnEvent", function()
+    ensureButtons(1)
 end)

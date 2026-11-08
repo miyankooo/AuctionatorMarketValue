@@ -47,18 +47,60 @@ function frameMethods:CreateFontString() return CreateFrame("FontString", nil, s
 function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) end
 function frameMethods:SetupMenu(fn) self.menu = fn end
 function frameMethods:SetAtlas(atlas) self.atlas = atlas end
+function frameMethods:SetTextColor(r) self.color = r end
 function frameMethods:SetPoint(point, relativeTo, relativePoint, x, y) self.points = self.points or {} self.points[point] = { relativeTo, relativePoint, x, y } end
+
+-- Blizzard's callback registry on the settings slider and checkbox: callbacks run with their owner first
+local function registerCallback(self, _, fn, owner) table.insert(self.callbacks, function(...) fn(owner, ...) end) end
+local function triggerEvent(self, ...) for _, fn in ipairs(self.callbacks) do fn(...) end end
+
+-- MinimalSliderWithSteppersTemplate: Init takes a step count, and a changed value fires OnValueChanged
+local sliderMethods = {
+    Init = function(self, value, minValue, maxValue, steps, formatters)
+        self.value, self.minValue, self.maxValue, self.steps, self.formatters = value, minValue, maxValue, steps, formatters
+    end,
+    SetValue = function(self, value)
+        if value == self.value then return end
+        self.value = value
+        triggerEvent(self, value)
+    end,
+}
+
+-- SettingsCheckboxTemplate: Init sets the value and the tooltip function, a click fires OnValueChanged
+local checkboxMethods = {
+    Init = function(self, value, tooltipFunc) self.checked, self.tooltipFunc = value, tooltipFunc end,
+    SetValue = function(self, value) self.checked = value end,
+    Click = function(self)
+        self.checked = not self.checked
+        triggerEvent(self, self.checked)
+    end,
+}
+
+-- Frames by template, so tests find what the addon built
+local templated = {}
 
 function CreateFrame(kind, name, parent, template)
     local frame = setmetatable({ scripts = {}, shown = true, owner = parent, kind = kind, template = template }, frameMethods)
     if template and template:find("Checkbox") then frame.Text = CreateFrame("FontString", nil, frame) end
     if template == "DialogHeaderTemplate" then frame.Setup = function(self, title) self.title = title end end
+    if template == "MinimalSliderWithSteppersTemplate" then
+        for key, fn in pairs(sliderMethods) do frame[key] = fn end
+        frame.Slider = CreateFrame("Slider", nil, frame)
+    end
+    if template == "SettingsCheckboxTemplate" then
+        for key, fn in pairs(checkboxMethods) do frame[key] = fn end
+    end
+    if template then
+        frame.callbacks, frame.RegisterCallback = {}, registerCallback
+        templated[template] = templated[template] or {}
+        table.insert(templated[template], frame)
+    end
     if name then _G[name] = frame end
     return frame
 end
 
 UIParent = CreateFrame("Frame")
-GameTooltip, ItemRefTooltip = CreateFrame("GameTooltip"), CreateFrame("GameTooltip")
+GameTooltip, ItemRefTooltip, SettingsTooltip = CreateFrame("GameTooltip"), CreateFrame("GameTooltip"), CreateFrame("GameTooltip")
 
 -- ===== WoW API =====
 C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Title" and "Auctionator Market Value" or nil end }
@@ -84,7 +126,8 @@ function hooksecurefunc(target, method, hook)
 end
 
 local function color(name)
-    return { WrapTextInColorCode = function(_, text) return "<" .. name .. ">" .. text .. "</>" end, GetRGB = function() return 0, 1, 0 end }
+    -- GetRGB answers the name, so a test reads which colour a text took
+    return { WrapTextInColorCode = function(_, text) return "<" .. name .. ">" .. text .. "</>" end, GetRGB = function() return name end }
 end
 HIGHLIGHT_FONT_COLOR, GREEN_FONT_COLOR, RED_FONT_COLOR = color("white"), color("green"), color("red")
 GRAY_FONT_COLOR, YELLOW_FONT_COLOR, NORMAL_FONT_COLOR, WARNING_FONT_COLOR = color("gray"), color("yellow"), color("gold"), color("warn")
@@ -137,41 +180,27 @@ function InCombatLockdown() return false end
 
 MenuUtil = { CreateRadioMenu = function(dropdown, isSelected, setSelected) dropdown.setSelected = setSelected end }
 FrameUtil = { RegisterFrameForEvents = function() end }
-local addonLoaded = {}
+local addonLoaded, loggedIn = {}, {}
 EventUtil = {
     RegisterOnceFrameEventAndCallback = function() end,
     ContinueOnAddOnLoaded = function(name, fn) addonLoaded[name] = addonLoaded[name] or {} table.insert(addonLoaded[name], fn) end,
+    ContinueOnPlayerLogin = function(fn) table.insert(loggedIn, fn) end,
 }
 SlashCmdList = {}
+SETTINGS, SETTINGS_DEFAULTS = "Settings", "Defaults"
 
-local registered = {}
-
--- An initializer stand-in that records its parent row and greying predicate
-local function settingRow(setting)
-    return { key = setting.key, SetParentInitializer = function(self, parent, predicate)
-        registered[self.key].parent, registered[self.key].enabledWhen = parent.key, predicate
-    end }
-end
-
+-- The canvas the addon registers, and every category it asked to open
+local canvas, opened = {}, {}
 Settings = {
-    VarType = { Boolean = "boolean", Number = "number" },
-    RegisterVerticalLayoutCategory = function(name)
-        local category = { GetID = function() return name end }
-        return category, { AddInitializer = function() end }
+    RegisterCanvasLayoutCategory = function(frame, name)
+        canvas.frame, canvas.name = frame, name
+        return { GetID = function() return name end }
     end,
-    RegisterAddOnSetting = function(_, variable, key, db, varType, label, default)
-        local entry = { label = label, default = default }
-        registered[key] = entry
-        return { SetValueChangedCallback = function() entry.repaints = true end, key = key }
-    end,
-    CreateCheckbox = function(_, setting) return settingRow(setting) end,
-    CreateSliderOptions = function() return { SetLabelFormatter = function() end } end,
-    CreateSlider = function(_, setting) return settingRow(setting) end,
     RegisterAddOnCategory = function() end,
-    OpenToCategory = function() end,
+    OpenToCategory = function(id) opened[#opened + 1] = id end,
 }
-MinimalSliderWithSteppersMixin = { Label = { Right = 1 } }
-function CreateSettingsListSectionHeaderInitializer() end
+MinimalSliderWithSteppersMixin = { Label = { Right = 2 }, Event = { OnValueChanged = "OnValueChanged" } }
+SettingsCheckboxMixin = { Event = { OnValueChanged = "OnValueChanged" } }
 
 -- ===== Auctionator =====
 local fired = {}
@@ -269,16 +298,44 @@ AuctionatorSellingFrame.SaleItemFrame = CreateFrame("Frame")
 AuctionatorSellingFrame.SaleItemFrame.Update = function() end
 
 -- ===== Settings =====
+-- The page is built at login, as its own canvas with Blizzard's settings slider and checkbox on each row
 AuctionatorMarketValueDB = nil
-AP.SettingsPanel.Register()
-check("Show Similar Items setting on by default", registered.showSimilar and registered.showSimilar.default == true and AP.DB().showSimilar == true)
-check("no TSM or Guide settings", registered.glowRequireBoth == nil and registered.guideAtLogin == nil)
-check("settings names in Title Case", registered.sellThresholdPct.label == "Sell Threshold", registered.sellThresholdPct.label)
-check("only the threshold repaints the glow", registered.sellThresholdPct.repaints and not registered.levelTolerance.repaints)
-check("range rows are children of Show Similar Items", registered.levelTolerance.parent == "showSimilar" and registered.statCountTolerance.parent == "showSimilar" and registered.sellThresholdPct.parent == nil)
-AP.DB().showSimilar = false
-check("range rows grey out while Show Similar Items is off", registered.levelTolerance.enabledWhen() == false)
-AP.DB().showSimilar = true
+for _, fn in ipairs(loggedIn) do fn() end
+local sliders = templated.MinimalSliderWithSteppersTemplate or {}
+local checkbox = (templated.SettingsCheckboxTemplate or {})[1]
+local sliderFor, labels = {}, {}
+for _, slider in ipairs(sliders) do sliderFor[slider.owner.text.text] = slider end
+for _, slider in ipairs(sliders) do labels[#labels + 1] = slider.owner.text.text end
+
+check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Auctionator Market Value", canvas.name)
+check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Compares every auction price") ~= nil)
+check("six sliders and one checkbox", #sliders == 6 and checkbox ~= nil, #sliders)
+check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold, Level Range, Weapon DPS Range, Stat Value Range, Stat Count Range", table.concat(labels, ", "))
+check("Show Similar Items on by default", checkbox.owner.text.text == "Show Similar Items" and checkbox.checked == true and AP.DB().showSimilar == true)
+check("sliders start at the defaults with a step count", sliderFor["Sell Threshold"].value == 15 and sliderFor["Weapon DPS Range"].steps == 10, sliderFor["Weapon DPS Range"].steps)
+check("the label shows the value", sliderFor["Deal Threshold"].formatters[MinimalSliderWithSteppersMixin.Label.Right](20) == "-20%")
+check("every row and control has a tooltip", sliderFor["Level Range"].owner.scripts.OnEnter ~= nil and sliderFor["Level Range"].Slider.scripts.OnEnter ~= nil and checkbox.tooltipFunc ~= nil)
+
+local repaint, repaints = AP.BagGlow.Repaint, 0
+AP.BagGlow.Repaint = function() repaints = repaints + 1 end
+sliderFor["Sell Threshold"]:SetValue(30)
+sliderFor["Level Range"]:SetValue(4)
+check("a slider saves its value", AP.DB().sellThresholdPct == 30 and AP.DB().levelTolerance == 4)
+check("only the threshold repaints the glow", repaints == 1, repaints)
+
+checkbox:Click()
+check("Show Similar Items saves its value", AP.DB().showSimilar == false)
+check("range rows grey out while Show Similar Items is off", sliderFor["Level Range"].enabled == false and sliderFor["Level Range"].owner.text.color == "gray" and sliderFor["Sell Threshold"].enabled == nil)
+
+local defaults
+for _, button in ipairs(templated.UIPanelButtonTemplate or {}) do
+    if button.text == "Defaults" then defaults = button end
+end
+repaints = 0
+defaults:Click()
+check("Defaults restores every setting", AP.DB().sellThresholdPct == 15 and AP.DB().levelTolerance == 2 and AP.DB().showSimilar == true and sliderFor["Sell Threshold"].value == 15 and checkbox.checked == true)
+check("Defaults enables the range rows and repaints the glow", sliderFor["Level Range"].enabled == true and sliderFor["Level Range"].owner.text.color == "gold" and repaints > 0)
+AP.BagGlow.Repaint = repaint
 
 -- ===== Chat =====
 -- Every line goes through the one helper: the bracketed title in gold, the message uncoloured
@@ -292,7 +349,7 @@ local function capture(fn)
     return printed
 end
 InCombatLockdown = function() return true end
-capture(AP.SettingsPanel.Open)
+capture(AP.OpenSettings)
 InCombatLockdown = function() return false end
 check("an open in combat prints one gold-prefixed line", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Opens after combat.", printed[1])
 
