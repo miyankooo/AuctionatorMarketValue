@@ -44,7 +44,7 @@ function frameMethods:SetHeight(h) self.height = h end
 function frameMethods:GetWidth() return self.width or 0 end
 function frameMethods:GetHeight() return self.height or 0 end
 function frameMethods:Click(button) self.scripts.OnClick(self, button or "LeftButton") end
-function frameMethods:CreateFontString() return CreateFrame("FontString", nil, self) end
+function frameMethods:CreateFontString(_, _, fontObject) return CreateFrame("FontString", nil, self, fontObject) end
 function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) end
 function frameMethods:SetupMenu(fn) self.menu = fn end
 function frameMethods:SetAtlas(atlas) self.atlas = atlas end
@@ -188,6 +188,9 @@ C_Item = {
 C_AuctionHouse = { MakeItemKey = function(itemID) return { itemID = itemID } end }
 function FormatLargeNumber(n) return tostring(n) end
 function IsModifiedClick() return false end
+SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856, IG_MAINMENU_OPTION_CHECKBOX_OFF = 857 }
+local sounds = {}
+function PlaySound(sound) sounds[#sounds + 1] = sound end
 function InCombatLockdown() return false end
 
 MenuUtil = { CreateRadioMenu = function(dropdown, isSelected, setSelected) dropdown.setSelected = setSelected end }
@@ -371,15 +374,30 @@ end
 -- The page is built at login, as its own canvas with Blizzard's settings slider and checkbox on each row
 local sliders = templated.MinimalSliderWithSteppersTemplate or {}
 local checkbox = (templated.SettingsCheckboxTemplate or {})[1]
-local sliderFor, labels = {}, {}
-for _, slider in ipairs(sliders) do sliderFor[slider.owner.text.text] = slider end
-for _, slider in ipairs(sliders) do labels[#labels + 1] = slider.owner.text.text end
+local sliderFor, labels, headers = {}, {}, {}
+for _, slider in ipairs(sliders) do sliderFor[slider.owner.label.text] = slider end
+for _, slider in ipairs(sliders) do labels[#labels + 1] = slider.owner.label.text end
+for _, text in ipairs(templated.GameFontHighlightLarge or {}) do headers[#headers + 1] = text.text end
+local function at(frame, point)
+    local anchor = frame.points and frame.points[point] or {}
+    return anchor[1], anchor[2], anchor[3], anchor[4]
+end
 
 check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Auctionator Market Value", canvas.name)
 check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Compares every auction price") ~= nil)
 check("six sliders and one checkbox", #sliders == 6 and checkbox ~= nil, #sliders)
 check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold, Level Range, Weapon DPS Range, Stat Value Range, Stat Count Range", table.concat(labels, ", "))
-check("Show Similar Items on by default", checkbox.owner.text.text == "Show Similar Items" and checkbox.checked == true and AP.DB().showSimilar == true)
+check("Show Similar Items on by default", checkbox.owner.label.text == "Show Similar Items" and checkbox.checked == true and AP.DB().showSimilar == true)
+check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Bag Glow, Deals, Similar Items", table.concat(headers, ", "))
+local header = templated.GameFontHighlightLarge[1]
+local headerX, headerY = at(header, "TOPLEFT")
+check("a header is a 45 px slot with its title at 7, -16", header.owner.height == 45 and headerX == 7 and headerY == -16)
+check("the first header hangs under the intro", select(1, at(header.owner, "TOPLEFT")) == canvas.frame.intro)
+local relativeTo, relativePoint, x, y = at(sliderFor["Sell Threshold"], "LEFT")
+check("a slider starts at the row's CENTER -40, 3 up", relativeTo == sliderFor["Sell Threshold"].owner and relativePoint == "CENTER" and x == -40 and y == 3, tostring(x) .. " " .. tostring(y))
+relativeTo, relativePoint, x = at(checkbox, "LEFT")
+check("the checkbox shares the controls' left edge", relativeTo == checkbox.owner and relativePoint == "CENTER" and x == -40, x)
+check("dependent rows are indented 15", at(sliderFor["Level Range"].owner.label, "LEFT") == 52 and at(sliderFor["Deal Threshold"].owner.label, "LEFT") == 37 and at(checkbox.owner.label, "LEFT") == 37)
 check("sliders start at the defaults with a step count", sliderFor["Sell Threshold"].value == 15 and sliderFor["Weapon DPS Range"].steps == 10, sliderFor["Weapon DPS Range"].steps)
 check("the label shows the value", sliderFor["Deal Threshold"].formatters[MinimalSliderWithSteppersMixin.Label.Right](20) == "-20%")
 check("every row and control has a tooltip", sliderFor["Level Range"].owner.scripts.OnEnter ~= nil and sliderFor["Level Range"].Slider.scripts.OnEnter ~= nil and checkbox.tooltipFunc ~= nil)
@@ -393,7 +411,11 @@ check("only the threshold repaints the glow", repaints == 1, repaints)
 
 checkbox:Click()
 check("Show Similar Items saves its value", AP.DB().showSimilar == false)
-check("range rows grey out while Show Similar Items is off", sliderFor["Level Range"].enabled == false and sliderFor["Level Range"].owner.text.color == "gray" and sliderFor["Sell Threshold"].enabled == nil)
+check("range rows grey out while Show Similar Items is off", sliderFor["Level Range"].enabled == false and sliderFor["Level Range"].owner.label.color == "gray" and sliderFor["Sell Threshold"].enabled == nil)
+check("the checkbox sounds like Blizzard's", sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
+checkbox.owner.scripts.OnMouseUp(checkbox.owner, "LeftButton")
+check("a click on the label ticks the box", checkbox.checked == true and AP.DB().showSimilar == true and sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON and sliderFor["Level Range"].enabled == true)
+checkbox:Click()
 
 local defaults
 for _, button in ipairs(templated.UIPanelButtonTemplate or {}) do
@@ -402,7 +424,7 @@ end
 repaints = 0
 defaults:Click()
 check("Defaults restores every setting", AP.DB().sellThresholdPct == 15 and AP.DB().levelTolerance == 2 and AP.DB().showSimilar == true and sliderFor["Sell Threshold"].value == 15 and checkbox.checked == true)
-check("Defaults enables the range rows and repaints the glow", sliderFor["Level Range"].enabled == true and sliderFor["Level Range"].owner.text.color == "gold" and repaints > 0)
+check("Defaults enables the range rows and repaints the glow", sliderFor["Level Range"].enabled == true and sliderFor["Level Range"].owner.label.color == "gold" and repaints > 0)
 AP.BagGlow.Repaint = repaint
 
 -- ===== Chat =====

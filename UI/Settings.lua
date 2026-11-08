@@ -9,16 +9,22 @@ local function bandPercent(value) return ("±%d%%"):format(value) end
 local function levels(value) return ("±%d levels"):format(value) end
 local function plusMinus(value) return ("±%d"):format(value) end
 
--- Rows in display order: key, label, help, then min, max, step and value formatter for a slider, or checkbox = true.
--- A row with a parent greys out while that checkbox is off.
-local ROWS = {
-    { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above the 14-day average.", 5, 100, 1, plusPercent },
-    { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the 14-day average.", 5, 100, 1, minusPercent },
-    { "showSimilar", "Show Similar Items", "With gear or a bag in the sale slot, comparable auctions join the current prices, marked Similar. Click one to undercut it.", checkbox = true },
-    { "levelTolerance", "Level Range", "Comparable gear may require a level this far above or below the sale item.", 0, 10, 1, levels, parent = "showSimilar" },
-    { "dpsTolerancePct", "Weapon DPS Range", "Comparable weapons must deal damage per second within this share of the sale item's.", 0, 50, 5, bandPercent, parent = "showSimilar" },
-    { "statValueTolerance", "Stat Value Range", "Each stat of comparable gear must sit within this share of the sale item's amount.", 0, 100, 5, bandPercent, parent = "showSimilar" },
-    { "statCountTolerance", "Stat Count Range", "Comparable gear must carry every stat of the sale item. Its total stat count may differ by this many.", 0, 5, 1, plusMinus, parent = "showSimilar" },
+-- Sections in display order; a row is key, label, help, then min, max, step and value formatter for a slider, or
+-- checkbox = true. A row with a parent is indented and greys out while that checkbox is off.
+local SECTIONS = {
+    { "Bag Glow", {
+        { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above the 14-day average.", 5, 100, 1, plusPercent },
+    } },
+    { "Deals", {
+        { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the 14-day average.", 5, 100, 1, minusPercent },
+    } },
+    { "Similar Items", {
+        { "showSimilar", "Show Similar Items", "With gear or a bag in the sale slot, comparable auctions join the current prices, marked Similar. Click one to undercut it.", checkbox = true },
+        { "levelTolerance", "Level Range", "Comparable gear may require a level this far above or below the sale item.", 0, 10, 1, levels, parent = "showSimilar" },
+        { "dpsTolerancePct", "Weapon DPS Range", "Comparable weapons must deal damage per second within this share of the sale item's.", 0, 50, 5, bandPercent, parent = "showSimilar" },
+        { "statValueTolerance", "Stat Value Range", "Each stat of comparable gear must sit within this share of the sale item's amount.", 0, 100, 5, bandPercent, parent = "showSimilar" },
+        { "statCountTolerance", "Stat Count Range", "Comparable gear must carry every stat of the sale item. Its total stat count may differ by this many.", 0, 5, 1, plusMinus, parent = "showSimilar" },
+    } },
 }
 
 -- What the addon does, where it works and what stays the game's own, before any row asks for a choice
@@ -27,8 +33,7 @@ local INTRO = "Compares every auction price with its 14-day average from Auction
     .. "Selling tabs and in Blizzard's auction lists and sell windows. A gray percentage rests on fewer than 3 days "
     .. "of prices.\n\n"
     .. "Items worth selling glow green in the Selling tab's bag list, and deals glow green in Blizzard's buy lists. "
-    .. "The settings below set both thresholds and which gear counts as similar. Scanning, buying and posting stay "
-    .. "Auctionator's and Blizzard's own."
+    .. "Scanning, buying and posting stay Auctionator's and Blizzard's own."
 
 -- The addon's page in Blizzard's Settings window, as its own canvas, copying the settings list's look
 -- (Blizzard_SettingsList.xml:14-30, Blizzard_SettingControls.xml, Blizzard_SettingControls.lua). Never a settings
@@ -57,24 +62,43 @@ local function BuildPanel(introText, restoreDefaults)
     return panel
 end
 
--- One row below the intro, its label in GameFontNormal from x 37 to the row's centre less 85. A checkbox
--- (SettingsCheckboxTemplate) goes at the row's CENTER -80, a WowStyle1DropdownTemplate 220 wide at CENTER -48.
--- Within one page, controls share one left edge.
-local function AddRow(panel, index, label, fillTooltip)
-    local y = -INTRO_GAP - (index - 1) * (ROW_HEIGHT + ROW_SPACING)
+-- One row below the previous one, its label in GameFontNormal from x 37 (52 for a dependent row) to the row's centre
+-- less 85. Every control starts at the row's CENTER -40: a SettingsCheckboxTemplate, a WowStyle1DropdownTemplate
+-- 220 wide, or a MinimalSliderWithSteppersTemplate 250 wide and 3 up. `above` is panel.intro for the first row.
+local CONTROL_X, DEPENDENT_INDENT, SLIDER_WIDTH = -40, 15, 250
+local function AddRow(panel, above, label, fillTooltip, dependent)
+    local gap = above == panel.intro and INTRO_GAP or ROW_SPACING
     local row = CreateFrame("Frame", nil, panel)
     row:SetHeight(ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", panel.intro, "BOTTOMLEFT", -LABEL_X, y)
-    row:SetPoint("TOPRIGHT", panel.intro, "BOTTOMRIGHT", LABEL_X, y)
+    row:SetPoint("TOPLEFT", above, "BOTTOMLEFT", above == panel.intro and -LABEL_X or 0, -gap)
+    row:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", above == panel.intro and LABEL_X or 0, -gap)
     row:EnableMouse(true)
     AP.AttachTooltip(row, fillTooltip)
-    local text = AP.CreateText(row, GameFontNormal)
-    text:SetPoint("LEFT", LABEL_X, 0)
-    text:SetPoint("RIGHT", row, "CENTER", -85, 0)
-    text:SetText(label)
-    -- Kept for greying the label, as Blizzard's list does for a child setting
-    row.text = text
+    row.label = AP.CreateText(row, GameFontNormal)
+    row.label:SetPoint("LEFT", LABEL_X + (dependent and DEPENDENT_INDENT or 0), 0)
+    row.label:SetPoint("RIGHT", row, "CENTER", -85, 0)
+    row.label:SetText(label)
     return row
+end
+
+-- A dependent row greys out while its parent option is off, as Blizzard's settings list does.
+local function SetRowEnabled(row, control, enabled)
+    row.label:SetTextColor((enabled and NORMAL_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
+    control:SetEnabled(enabled)
+end
+
+-- Blizzard's section header for a group of rows: a 45 px slot, the title in GameFontHighlightLarge at 7, -16
+-- (Blizzard_SettingControls.xml:12-20). The next row anchors below it with `above` set to the header.
+local function AddSectionHeader(panel, above, title)
+    local header = CreateFrame("Frame", nil, panel)
+    header:SetHeight(45)
+    header:SetPoint("TOPLEFT", above, "BOTTOMLEFT", above == panel.intro and -LABEL_X or 0, 0)
+    header:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", above == panel.intro and LABEL_X or 0, 0)
+    local text = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    text:SetJustifyH("LEFT")
+    text:SetPoint("TOPLEFT", 7, -16)
+    text:SetText(title)
+    return header
 end
 
 local function RegisterPanel(panel)
@@ -108,22 +132,16 @@ local function CreateSlider(parent, width, name)
     return slider
 end
 
--- Blizzard's settings slider sits 250 wide with its left edge at the row's CENTER -80, 3 up
--- (SettingsSliderControlMixin:OnLoad, Blizzard_SettingControls.lua:713-715); the checkbox shares that left edge
-local CONTROL_X, SLIDER_WIDTH, SLIDER_Y = -80, 250, 3
+-- Blizzard's settings slider row lifts the slider 3 px (SettingsSliderControlMixin:OnLoad, Blizzard_SettingControls.lua:715)
+local SLIDER_Y = 3
 
--- Each row and control by its setting key
-local rows, controls = {}, {}
+-- Each control by its setting key, and the dependent rows with their parent's key
+local controls, dependents = {}, {}
 
--- A child row greys its label and control while its checkbox is off, as SettingsListElementMixin:DisplayEnabled does
 local function updateEnabled()
     local db = AP.DB()
-    for _, def in ipairs(ROWS) do
-        if def.parent then
-            local enabled = db[def.parent] == true
-            rows[def[1]].text:SetTextColor((enabled and NORMAL_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
-            controls[def[1]]:SetEnabled(enabled)
-        end
+    for _, dependent in ipairs(dependents) do
+        SetRowEnabled(dependent.row, dependent.control, db[dependent.parent] == true)
     end
 end
 
@@ -141,10 +159,10 @@ local function fillFor(def)
     end
 end
 
-local function addSlider(panel, index, def)
+local function addSlider(panel, above, def)
     local key, label, _, minValue, maxValue, step, formatter = unpack(def)
     local fill = fillFor(def)
-    local row = AddRow(panel, index, label, fill)
+    local row = AddRow(panel, above, label, fill, def.parent ~= nil)
     local slider = CreateSlider(row, SLIDER_WIDTH)
     slider:SetPoint("LEFT", row, "CENTER", CONTROL_X, SLIDER_Y)
     slider:Init(AP.DB()[key], minValue, maxValue, (maxValue - minValue) / step, {
@@ -161,22 +179,31 @@ local function addSlider(panel, index, def)
         GameTooltip:Show()
     end)
     slider.Slider:HookScript("OnLeave", GameTooltip_Hide)
-    rows[key], controls[key] = row, slider
+    controls[key] = slider
+    return row, slider
 end
 
 -- The checkbox Blizzard's list builds for a checkbox row (SettingsCheckboxControlMixin), on the addon's own canvas.
 -- Init wires the click to its own callback registry and its tooltip to SettingsTooltip.
-local function addCheckbox(panel, index, def)
+local function addCheckbox(panel, above, def)
     local key, label = def[1], def[2]
     local fill = fillFor(def)
-    local row = AddRow(panel, index, label, fill)
+    local row = AddRow(panel, above, label, fill, def.parent ~= nil)
     local checkbox = CreateFrame("CheckButton", nil, row, "SettingsCheckboxTemplate")
     checkbox:SetPoint("LEFT", row, "CENTER", CONTROL_X, 0)
     checkbox:Init(AP.DB()[key], function() fill(SettingsTooltip) end)
     checkbox:RegisterCallback(SettingsCheckboxMixin.Event.OnValueChanged, function(_, checked)
+        -- The sound Blizzard's checkbox row plays on every change (SettingsCheckboxControlMixin:SetValue)
+        PlaySound(checked and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
         setValue(key, checked)
     end, row)
-    rows[key], controls[key] = row, checkbox
+    -- A click on the label ticks the box, as the row's tooltip region does in Blizzard's list
+    -- (SettingsCheckboxControlMixin:OnLoad, Blizzard_SettingControls.lua:617)
+    row:SetScript("OnMouseUp", function()
+        if checkbox:IsEnabled() then checkbox:Click() end
+    end)
+    controls[key] = checkbox
+    return row, checkbox
 end
 
 local function restoreDefaults()
@@ -191,8 +218,17 @@ end
 
 EventUtil.ContinueOnPlayerLogin(function()
     local panel = BuildPanel(INTRO, restoreDefaults)
-    for index, def in ipairs(ROWS) do
-        if def.checkbox then addCheckbox(panel, index, def) else addSlider(panel, index, def) end
+    local above = panel.intro
+    for _, section in ipairs(SECTIONS) do
+        local title, rows = unpack(section)
+        above = AddSectionHeader(panel, above, title)
+        for _, def in ipairs(rows) do
+            local row, control = (def.checkbox and addCheckbox or addSlider)(panel, above, def)
+            if def.parent then
+                dependents[#dependents + 1] = { row = row, control = control, parent = def.parent }
+            end
+            above = row
+        end
     end
     updateEnabled()
     RegisterPanel(panel)
