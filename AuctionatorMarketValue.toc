@@ -28,4 +28,5 @@ Modules\FullScanButton.lua
 Modules\AuctionHouseLists.lua
 Modules\PostingCheck.lua
 UI\Settings.lua
+UI\Welcome.lua
 Modules\Bootstrap.lua

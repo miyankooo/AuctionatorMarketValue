@@ -189,6 +189,23 @@ EventUtil = {
 SlashCmdList = {}
 SETTINGS, SETTINGS_DEFAULTS = "Settings", "Defaults"
 
+-- Blizzard hands every addon link click to each addon through one EventRegistry event
+local itemRefHandlers = {}
+EventRegistry = {
+    RegisterCallback = function(_, event, fn, owner)
+        if event == "SetItemRef" then itemRefHandlers[owner] = function(...) fn(owner, ...) end end
+    end,
+}
+LinkTypes = { AddOn = "addon" }
+-- Blizzard's own formatter (LinkUtil.lua)
+LinkUtil = {
+    FormatLink = function(linkType, text, ...)
+        return table.concat({ ("|H%s"):format(linkType), ... }, ":") .. ("|h%s|h"):format(text)
+    end,
+}
+local SECRET = {}
+function issecretvalue(value) return value == SECRET end
+
 -- The canvas the addon registers, and every category it asked to open
 local canvas, opened = {}, {}
 Settings = {
@@ -297,10 +314,48 @@ AuctionatorSellingFrame.HistoricalPriceInset = CreateFrame("Frame")
 AuctionatorSellingFrame.SaleItemFrame = CreateFrame("Frame")
 AuctionatorSellingFrame.SaleItemFrame.Update = function() end
 
+-- ===== Welcome line =====
+-- Chat lines printed while fn runs
+local printed = {}
+local realPrint = print
+local function capture(fn)
+    printed = {}
+    print = function(line) printed[#printed + 1] = line end
+    fn()
+    print = realPrint
+    return printed
+end
+local function runAll(callbacks) return function() for _, fn in ipairs(callbacks or {}) do fn() end end end
+
+-- First load on the account: no saved table yet
+capture(runAll(addonLoaded.AuctionatorMarketValue))
+check("the first load marks the first run and prints nothing", AP.firstRun == true and #printed == 0 and type(AuctionatorMarketValueDB) == "table", #printed)
+capture(runAll(loggedIn))
+local welcome = printed[1] or ""
+check("login prints exactly one welcome line", #printed == 1, #printed)
+check("the welcome line opens with the gold title", welcome:find("<gold>[Auctionator Market Value]</>: Shows how", 1, true) == 1, welcome)
+check("the welcome line links the settings and names /amv", welcome:find("Open the <gold>|Haddon:AuctionatorMarketValue|h[Settings]|h</> or type /amv to", 1, true) ~= nil, welcome)
+
+local onItemRef = itemRefHandlers[AP]
+onItemRef("addon:AuctionatorMarketValue", "[Settings]", "LeftButton")
+check("a click on the link opens the settings", #opened == 1 and opened[1] == "Auctionator Market Value", #opened)
+onItemRef("addon:OtherAddon", "[Other]", "LeftButton")
+onItemRef(SECRET, "[Settings]", "LeftButton")
+check("another addon's link or a secret one opens nothing", #opened == 1, #opened)
+
+-- A later login on the same account, in a fresh load of the addon's onboarding
+do
+    local later = {}
+    addonLoaded.AuctionatorMarketValue = {}
+    local loginCallbacks = #loggedIn
+    for _, path in ipairs({ "Modules/Init.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("AuctionatorMarketValue", later) end
+    capture(runAll(addonLoaded.AuctionatorMarketValue))
+    capture(function() for index = loginCallbacks + 1, #loggedIn do loggedIn[index]() end end)
+    check("a later login prints nothing", later.firstRun == false and #printed == 0, #printed)
+end
+
 -- ===== Settings =====
 -- The page is built at login, as its own canvas with Blizzard's settings slider and checkbox on each row
-AuctionatorMarketValueDB = nil
-for _, fn in ipairs(loggedIn) do fn() end
 local sliders = templated.MinimalSliderWithSteppersTemplate or {}
 local checkbox = (templated.SettingsCheckboxTemplate or {})[1]
 local sliderFor, labels = {}, {}
@@ -339,15 +394,6 @@ AP.BagGlow.Repaint = repaint
 
 -- ===== Chat =====
 -- Every line goes through the one helper: the bracketed title in gold, the message uncoloured
-local printed = {}
-local realPrint = print
-local function capture(fn)
-    printed = {}
-    print = function(line) printed[#printed + 1] = line end
-    fn()
-    print = realPrint
-    return printed
-end
 InCombatLockdown = function() return true end
 capture(AP.OpenSettings)
 InCombatLockdown = function() return false end

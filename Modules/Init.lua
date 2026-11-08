@@ -31,9 +31,26 @@ function AP.DB()
     return AuctionatorMarketValueDB
 end
 
+-- An absent saved table at load marks the account's first run, which the welcome line waits for. The table is made
+-- now, so the next login is no first run
+EventUtil.ContinueOnAddOnLoaded(addonName, function()
+    AP.firstRun = AuctionatorMarketValueDB == nil
+    AP.DB()
+end)
+
 -- Every chat line: the bracketed title in the gold of Blizzard's own chat links, the message uncoloured
 function AP.Print(message)
     print(NORMAL_FONT_COLOR:WrapTextInColorCode("[" .. AP.title .. "]") .. ": " .. message)
+end
+
+-- Another addon's link may be secret. issecretvalue is declared SecretArguments = "AllowedWhenUntainted"; whether the
+-- flag makes it raise for addon code is unsettled, so pcall answers right either way, because a raise means secret,
+-- and nil never reaches the predicate.
+function AP.CanAccess(value)
+    if value == nil then return true end
+
+    local ok, secret = pcall(issecretvalue, value)
+    return ok and not secret
 end
 
 -- Text in a font role: GameFontNormal (heading, gold), GameFontHighlight (body, white), GameFontDisable (muted,
