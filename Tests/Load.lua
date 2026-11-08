@@ -1,5 +1,6 @@
--- Offline smoke test: loads every file in toc order against stubs of the WoW API and Auctionator, opens the
--- Auction House once and checks the tooltip rows, the Full Scan button, comparable clicks, Sale Scan and the parser.
+-- Offline smoke test: loads every file in toc order against stubs of the WoW API and Auctionator, logs in and opens
+-- the Auction House once, and checks the welcome line, the settings page, the tooltip rows, the Full Scan button and
+-- its help tip, comparable clicks, Sale Scan, the parser, Blizzard's auction lists and the slash commands.
 -- Run from the addon folder: lua Tests/Load.lua
 
 local failures = 0
@@ -115,6 +116,7 @@ GameTooltip, ItemRefTooltip, SettingsTooltip = CreateFrame("GameTooltip"), Creat
 -- ===== WoW API =====
 C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Title" and "Auctionator Market Value" or nil end }
 strmatch = string.match
+function strtrim(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
 tinsert = table.insert
 unpack = unpack or table.unpack
 time = os.time
@@ -660,6 +662,26 @@ AuctionatorCancellingFrame = CreateFrame("Frame")
 check("Auctionator's Cancelling tab uses the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)
 AuctionHouseFrame.shown = false
 check("outside the Auction House the seller's colours apply", AP.Trend.Mode() == AP.Trend.UP_GREEN)
+
+-- ===== Slash commands =====
+local slash = SlashCmdList.AUCTIONATORMARKETVALUE
+local openedBefore = #opened
+capture(function() slash("") end)
+check("bare /amv opens the settings and prints nothing", #opened == openedBefore + 1 and #printed == 0)
+local helpLine = "<gold>[Auctionator Market Value]</>: Type /amv for the settings, /amv intro to see the welcome line and the tip again, or /amv help for this list."
+capture(function() slash(" HELP ") end)
+check("/amv help prints one line naming every command", #printed == 1 and printed[1] == helpLine, printed[1])
+capture(function() slash("?") end)
+check("/amv ? prints the same line", #printed == 1 and printed[1] == helpLine, printed[1])
+openedBefore = #opened
+capture(function() slash("frobnicate") end)
+check("an unknown word prints the hint and opens nothing", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Unknown command. Type /amv help for the list." and #opened == openedBefore, printed[1])
+capture(function() slash("intro") end)
+check("/amv intro prints the welcome line again", #printed == 1 and printed[1] == welcome, printed[1])
+check("/amv intro clears the tip flag", AP.DB().tipSeen == nil)
+fullScan:Hide()
+fullScan:Show()
+check("the tip shows again at its next chance", tip.shown and tip.info ~= nil)
 
 print(failures == 0 and "All checks passed." or (failures .. " checks failed."))
 os.exit(failures == 0 and 0 or 1)

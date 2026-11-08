@@ -198,9 +198,21 @@ EventUtil.ContinueOnPlayerLogin(function()
     RegisterPanel(panel)
 end)
 
--- /ap already belongs to Blizzard's commentator commands, so the short form is /amv.
+-- One long command and one short alias; /ap already belongs to Blizzard's commentator commands, so the short form is
+-- /amv. The bare command opens the settings; help and intro are the shared words, and any other word prints the hint.
 SLASH_AUCTIONATORMARKETVALUE1, SLASH_AUCTIONATORMARKETVALUE2 = "/auctionatormarketvalue", "/amv"
-SlashCmdList.AUCTIONATORMARKETVALUE = AP.OpenSettings
+SlashCmdList.AUCTIONATORMARKETVALUE = function(message)
+    local command = strtrim(message or ""):lower()
+    if command == "" then
+        AP.OpenSettings()
+    elseif command == "help" or command == "?" then
+        AP.Print("Type /amv for the settings, /amv intro to see the welcome line and the tip again, or /amv help for this list.")
+    elseif command == "intro" then
+        AP.ReplayIntro()
+    else
+        AP.Print("Unknown command. Type /amv help for the list.")
+    end
+end
 
 -- Addon Compartment entry points named in the toc. Blizzard calls them with the addon name first, then the menu row.
 function AuctionatorMarketValue_CompartmentClick()

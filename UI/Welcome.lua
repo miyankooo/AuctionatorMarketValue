@@ -18,6 +18,12 @@ function AP.PrintWelcome()
         .. "on Auctionator's Shopping tab first, so prices exist.")
 end
 
+-- The welcome line now, and the help tip again at its next chance
+function AP.ReplayIntro()
+    AP.PrintWelcome()
+    AP.DB().tipSeen = nil
+end
+
 -- Another addon's link may be secret, so it is checked before the comparison.
 EventRegistry:RegisterCallback("SetItemRef", function(_, link)
     if AP.CanAccess(link) and link == LINK then AP.OpenSettings() end
