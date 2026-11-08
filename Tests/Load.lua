@@ -90,6 +90,16 @@ function CreateFrame(kind, name, parent, template)
     if template == "SettingsCheckboxTemplate" then
         for key, fn in pairs(checkboxMethods) do frame[key] = fn end
     end
+    -- HelpTipTemplate starts hidden; Acknowledge closes it and runs the info's callback
+    if template == "HelpTipTemplate" then
+        frame.shown = false
+        frame.Init = function(self, _, info, relativeRegion) self.info, self.relativeRegion = info, relativeRegion end
+        frame.Acknowledge = function(self)
+            local info = self.info
+            self.info, self.shown = nil, false
+            info.onAcknowledgeCallback()
+        end
+    end
     if template then
         frame.callbacks, frame.RegisterCallback = {}, registerCallback
         templated[template] = templated[template] or {}
@@ -218,6 +228,7 @@ Settings = {
 }
 MinimalSliderWithSteppersMixin = { Label = { Right = 2 }, Event = { OnValueChanged = "OnValueChanged" } }
 SettingsCheckboxMixin = { Event = { OnValueChanged = "OnValueChanged" } }
+HelpTip = { width = 226, ButtonStyle = { Close = 2 }, Point = { TopEdgeCenter = 2 } }
 
 -- ===== Auctionator =====
 local fired = {}
@@ -477,8 +488,17 @@ end
 -- ===== Full Scan button =====
 local fullScan = upvalue(AP.FullScanButton.Ensure, "scanButton")
 check("Full Scan sits bottom-left on the Export Results row", fullScan.text == "Full Scan" and fullScan.points.LEFT[1] == AuctionatorShoppingFrame.ShoppingResultsInset and fullScan.points.BOTTOM[1] == AuctionatorShoppingFrame.ExportCSV)
+local tip = (templated.HelpTipTemplate or {})[1]
+check("a help tip points at Full Scan", tip and tip.owner == fullScan and tip.shown and tip.info.text == "Click Full Scan to load today's prices for every percentage and average." and tip.info.targetPoint == HelpTip.Point.TopEdgeCenter and tip.info.buttonStyle == HelpTip.ButtonStyle.Close)
+fullScan:Hide()
+check("the tip hides with its target without being marked", AP.DB().tipSeen == nil)
+fullScan:Show()
 fullScan:Click()
 check("click starts Auctionator's incremental scan by default", scansStarted.incremental == 1 and scansStarted.replicate == 0)
+check("using Full Scan closes the tip for good", AP.DB().tipSeen == true and not tip.shown)
+fullScan:Hide()
+fullScan:Show()
+check("the tip stays away once seen", not tip.shown and #templated.HelpTipTemplate == 1)
 config.replicate_scan_3 = true
 fullScan:Click()
 check("Alternate Scan Mode starts the replicate scan", scansStarted.replicate == 1)

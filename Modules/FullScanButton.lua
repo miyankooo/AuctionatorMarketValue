@@ -12,6 +12,9 @@ local BUTTON_WIDTH = 112
 -- How long the final percentage stays before the label returns to Full Scan
 local RESULT_SECONDS = 2
 
+-- The first step for a new player: prices before any percentage can show
+local TIP_TEXT = "Click Full Scan to load today's prices for every percentage and average."
+
 local scanButton, resetTimer
 local lastPercent = 0
 
@@ -89,6 +92,38 @@ local function addStateLines(tooltip)
     end
 end
 
+-- Blizzard's yellow glowing callout, the one the Auction House uses for its undercut tip
+-- (Blizzard_AuctionHouseUI/Shared/Blizzard_AuctionHouseSellFrame.lua:507), as an own HelpTipTemplate frame on the
+-- target. HelpTip:Show would take a frame from Blizzard's shared pool, and writing to that pool from addon code would
+-- taint the help tips Blizzard shows later. It shows each time the target shows until the player closes it or uses
+-- the feature, then never again on the account; it hides with the target without being marked. Returns the call for
+-- when the player uses the feature.
+local function AttachTip(target, text, targetPoint)
+    local tip
+    local info = {
+        text = text,
+        buttonStyle = HelpTip.ButtonStyle.Close,
+        targetPoint = targetPoint,
+        onAcknowledgeCallback = function() AP.DB().tipSeen = true end,
+    }
+    local function show()
+        if AP.DB().tipSeen then return end
+        if not tip then
+            tip = CreateFrame("Frame", nil, target, "HelpTipTemplate")
+            tip.width = HelpTip.width
+            tip:SetWidth(tip.width)
+        end
+        tip:Init(target, info, target)
+        tip:Show()
+    end
+    target:HookScript("OnShow", show)
+    -- Auctionator's button can be made while its tab already shows, so it gets no OnShow of its own
+    if target:IsVisible() then show() end
+    return function()
+        if tip and tip.info then tip:Acknowledge() else AP.DB().tipSeen = true end
+    end
+end
+
 -- Bottom-left of the results inset, on the Export Results row. Parented to that button so it hides with it whenever a
 -- buy screen covers the results
 function AP.FullScanButton.Ensure()
@@ -106,7 +141,10 @@ function AP.FullScanButton.Ensure()
     end)
     button:SetPoint("LEFT", inset, "LEFT", 0, 0)
     button:SetPoint("BOTTOM", exportButton, "BOTTOM", 0, 0)
+    -- Above the button, where the results list leaves room
+    local useTip = AttachTip(button, TIP_TEXT, HelpTip.Point.TopEdgeCenter)
     button:SetScript("OnClick", function()
+        useTip()
         if not blockedBySearch() then AP.Bridge.StartFullScan() end
     end)
 
