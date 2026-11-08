@@ -91,15 +91,30 @@ function CreateFrame(kind, name, parent, template)
     if template == "SettingsCheckboxTemplate" then
         for key, fn in pairs(checkboxMethods) do frame[key] = fn end
     end
-    -- HelpTipTemplate starts hidden; Acknowledge closes it and runs the info's callback
+    -- HelpTipTemplate as HelpTip.lua runs it: it starts hidden, Init leaves `acknowledged` as it was and only Reset
+    -- clears it, the close button acknowledges, and hiding with its parent closes it, which runs the acknowledge
+    -- callback only when the tip was acknowledged
     if template == "HelpTipTemplate" then
-        frame.shown = false
-        frame.Init = function(self, _, info, relativeRegion) self.info, self.relativeRegion = info, relativeRegion end
-        frame.Acknowledge = function(self)
-            local info = self.info
-            self.info, self.shown = nil, false
-            info.onAcknowledgeCallback()
+        frame.shown, frame.acknowledged, frame.inits = false, false, 0
+        frame.Init = function(self, _, info, relativeRegion)
+            self.info, self.relativeRegion, self.inits = info, relativeRegion, self.inits + 1
         end
+        frame.Reset = function(self) self.info, self.acknowledged = nil, false end
+        frame.Close = function(self)
+            local info = self.info
+            if info then
+                self.info = nil
+                if self.acknowledged then info.onAcknowledgeCallback() end
+            end
+            self.shown = false
+        end
+        frame.Acknowledge = function(self)
+            self.acknowledged = true
+            self:Close()
+        end
+        frame.CloseButton = CreateFrame("Button", nil, frame)
+        frame.CloseButton:SetScript("OnClick", function() frame:Acknowledge() end)
+        parent:HookScript("OnHide", function() if frame.shown then frame:Close() end end)
     end
     if template then
         frame.callbacks, frame.RegisterCallback = {}, registerCallback
@@ -702,10 +717,25 @@ capture(function() slash("frobnicate") end)
 check("an unknown word prints the hint and opens nothing", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Unknown command. Type /amv help for the list." and #opened == openedBefore, printed[1])
 capture(function() slash("intro") end)
 check("/amv intro prints the welcome line again", #printed == 1 and printed[1] == welcome, printed[1])
-check("/amv intro clears the tip flag", AP.DB().tipSeen == nil)
-fullScan:Hide()
+check("/amv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
+local inits = tip.inits
 fullScan:Show()
-check("the tip shows again at its next chance", tip.shown and tip.info ~= nil)
+check("an open tip is not set up again", tip.inits == inits)
+-- The tip was acknowledged once, by the Full Scan click; brought back, it must count as fresh
+fullScan:Hide()
+check("a tip brought back by /amv intro is not marked seen when Full Scan hides", AP.DB().tipSeen == nil and not tip.shown)
+fullScan:Show()
+check("it shows again at Full Scan's next show", tip.shown and tip.info ~= nil)
+tip.CloseButton:Click()
+check("its close button retires it for good", AP.DB().tipSeen == true and not tip.shown)
+AP.DB().tipSeen = nil
+fullScan:Hide()
+check("Full Scan hidden: /amv intro waits for its next show", (function()
+    capture(function() slash("intro") end)
+    return not tip.shown
+end)())
+fullScan:Show()
+check("then the tip shows", tip.shown)
 
 print(failures == 0 and "All checks passed." or (failures .. " checks failed."))
 os.exit(failures == 0 and 0 or 1)

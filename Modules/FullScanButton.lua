@@ -15,7 +15,7 @@ local RESULT_SECONDS = 2
 -- The first step for a new player: prices before any percentage can show
 local TIP_TEXT = "Click Full Scan to load today's prices for every percentage and average."
 
-local scanButton, resetTimer
+local scanButton, resetTimer, showTip
 local lastPercent = 0
 
 local function setLabel(text)
@@ -96,9 +96,10 @@ end
 -- (Blizzard_AuctionHouseUI/Shared/Blizzard_AuctionHouseSellFrame.lua:507), as an own HelpTipTemplate frame on the
 -- target. HelpTip:Show would take a frame from Blizzard's shared pool, and writing to that pool from addon code would
 -- taint the help tips Blizzard shows later. It shows each time the target shows until the player closes it or uses
--- the feature, then never again on the account; it hides with the target without being marked. Returns the call for
--- when the player uses the feature.
-local function AttachTip(target, text, targetPoint)
+-- the feature, then never again on the account; it hides with the target without being marked. Reset runs before
+-- every Init: only Blizzard's pool resets a tip, and Init leaves `acknowledged` set (HelpTip.lua:419-431, 495, 687),
+-- so a tip closed once and brought back by /amv intro would count as seen when it merely hides with its target.
+local function AttachTip(target, text, targetPoint, relativeRegion)
     local tip
     local info = {
         text = text,
@@ -106,22 +107,31 @@ local function AttachTip(target, text, targetPoint)
         targetPoint = targetPoint,
         onAcknowledgeCallback = function() AP.DB().tipSeen = true end,
     }
-    local function show()
-        if AP.DB().tipSeen then return end
+    local function ShowTip()
+        if AP.DB().tipSeen or (tip and tip:IsShown()) then return end
         if not tip then
             tip = CreateFrame("Frame", nil, target, "HelpTipTemplate")
             tip.width = HelpTip.width
             tip:SetWidth(tip.width)
         end
-        tip:Init(target, info, target)
+        tip:Reset()
+        tip:Init(target, info, relativeRegion or target)
         tip:Show()
     end
-    target:HookScript("OnShow", show)
+    target:HookScript("OnShow", ShowTip)
     -- Auctionator's button can be made while its tab already shows, so it gets no OnShow of its own
-    if target:IsVisible() then show() end
-    return function()
+    if target:IsVisible() then ShowTip() end
+
+    -- The player used the feature: the tip goes for good, shown or not.
+    local function Retire()
         if tip and tip.info then tip:Acknowledge() else AP.DB().tipSeen = true end
     end
+    return ShowTip, Retire
+end
+
+-- /amv intro brings the tip back now while Full Scan shows, otherwise at its next show
+function AP.FullScanButton.ShowTip()
+    if showTip and scanButton:IsVisible() then showTip() end
 end
 
 -- Bottom-left of the results inset, on the Export Results row. Parented to that button so it hides with it whenever a
@@ -142,9 +152,10 @@ function AP.FullScanButton.Ensure()
     button:SetPoint("LEFT", inset, "LEFT", 0, 0)
     button:SetPoint("BOTTOM", exportButton, "BOTTOM", 0, 0)
     -- Above the button, where the results list leaves room
-    local useTip = AttachTip(button, TIP_TEXT, HelpTip.Point.TopEdgeCenter)
+    local retireTip
+    showTip, retireTip = AttachTip(button, TIP_TEXT, HelpTip.Point.TopEdgeCenter)
     button:SetScript("OnClick", function()
-        useTip()
+        retireTip()
         if not blockedBySearch() then AP.Bridge.StartFullScan() end
     end)
 

@@ -18,10 +18,11 @@ function AP.PrintWelcome()
         .. "on Auctionator's Shopping tab first, so prices exist.")
 end
 
--- The welcome line now, and the help tip again at its next chance
+-- The welcome line now, and the help tip again: at once while Full Scan shows, otherwise at its next show
 function AP.ReplayIntro()
     AP.PrintWelcome()
     AP.DB().tipSeen = nil
+    AP.FullScanButton.ShowTip()
 end
 
 -- Another addon's link may be secret, so it is checked before the comparison.
