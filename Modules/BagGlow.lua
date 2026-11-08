@@ -9,15 +9,17 @@ local function favorable(itemLink)
 end
 
 -- Marks an item the addon recommends: the default bags' new-item glow on the item's icon, ADD blended so it stays
--- visible next to a quality border. One texture per button, made on first need.
+-- visible next to a quality border. One texture per button, made on first need and kept in the addon's own weak
+-- table, never as a field on a button Blizzard or another addon owns.
+local itemGlows = setmetatable({}, { __mode = "k" })
 local function ShowItemGlow(itemButton, shown)
-    local glow = itemButton.addonGlow
+    local glow = itemGlows[itemButton]
     if shown and not glow then
         glow = itemButton:CreateTexture(nil, "OVERLAY", nil, 1)
         glow:SetAllPoints(itemButton.Icon)
         glow:SetBlendMode("ADD")
         glow:SetAtlas("bags-glow-green")
-        itemButton.addonGlow = glow
+        itemGlows[itemButton] = glow
     end
     if glow then glow:SetShown(shown) end
 end

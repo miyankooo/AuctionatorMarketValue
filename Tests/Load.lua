@@ -536,9 +536,11 @@ check("Sale Scan enabled again after the slot clears", scanButton:IsEnabled())
 -- An item whose last price sits the sell threshold above its average takes the bags' green glow on its icon
 local bagButton = CreateFrame("Button")
 bagButton.Icon = CreateFrame("Texture", nil, bagButton)
+bagButton.CreateTexture = function(self) self.texture = CreateFrame("Texture", nil, self) return self.texture end
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
-local bagGlow = rawget(bagButton, "addonGlow")
+local bagGlow = bagButton.texture
 check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow.atlas == "bags-glow-green")
+check("the glow is kept off Auctionator's button", rawget(bagButton, "addonGlow") == nil)
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, {})
 check("an emptied bag slot drops the glow", bagGlow and not bagGlow.shown)
 
