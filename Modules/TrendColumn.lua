@@ -17,7 +17,7 @@ end
 local TREND_COLUMN = {
     headerTemplate = "AuctionatorStringColumnHeaderTemplate",
     headerParameters = { SORT_FIELD },
-    headerText = "Relative",
+    headerText = AP.Trend.HEADER,
     cellTemplate = "AuctionatorStringCellTemplate",
     cellParameters = { TEXT_FIELD },
     width = 64,

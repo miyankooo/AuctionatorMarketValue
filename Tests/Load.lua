@@ -394,29 +394,44 @@ local stats = AP.ItemStats.FullStatSet("equip: decreases the magical resistances
 check("vanilla spell piercing parses", stats.spellpenetration == 10, stats.spellpenetration)
 
 -- ===== Blizzard's auction lists =====
--- A list stand-in: rows with Blizzard's rowData and cells, the price cell last among those with money
+-- A list stand-in: rows with Blizzard's rowData and three cells, each with money and a right edge, that record
+-- the font string and texture made on them
+local function recordFontString(self)
+    self.fontString = CreateFrame("FontString", nil, self)
+    return self.fontString
+end
+local function cellAt(r, right)
+    local cell = CreateFrame("Frame", nil, r)
+    cell.MoneyDisplay = CreateFrame("Frame", nil, cell)
+    cell.GetRight = function() return right end
+    return cell
+end
 local function row(rowData)
     local r = CreateFrame("Button")
     r.rowData = rowData
-    local bid, price = CreateFrame("Frame", nil, r), CreateFrame("Frame", nil, r)
-    bid.MoneyDisplay, price.MoneyDisplay = CreateFrame("Frame"), CreateFrame("Frame")
-    local quantity = CreateFrame("Frame", nil, r)
-    quantity.MoneyDisplay = false
-    r.cells = { bid, price, quantity }
+    r.CreateFontString = recordFontString
+    r.CreateTexture = function(self) self.texture = CreateFrame("Texture", nil, self) return self.texture end
+    r.cells = { cellAt(r, 150), cellAt(r, 300), cellAt(r, 400) }
     return r
 end
 local function list(rows)
     local frame = CreateFrame("Frame")
     frame.ScrollBox = { ForEachFrame = function(_, fn) for _, r in ipairs(rows) do fn(r) end end }
+    frame.HeaderContainer = CreateFrame("Frame", nil, frame)
+    frame.HeaderContainer.GetLeft = function() return 100 end
+    frame.HeaderContainer.CreateFontString = recordFontString
     return frame
 end
 
 local cheap, dear, thin = row({ itemKey = { itemID = 25 }, buyoutAmount = 70 }), row({ itemKey = { itemID = 25 }, buyoutAmount = 130 }), row({ itemKey = { itemID = 25 } })
+local commodity, posted = row({ itemID = 25, unitPrice = 70 }), row({ itemID = 25, unitPrice = 130 })
 
 -- Real frames answer nil for a missing key, the stand-ins a function, so the lists and windows not under test are false
 AuctionHouseFrame = CreateFrame("Frame")
-AuctionHouseFrame.BrowseResultsFrame, AuctionHouseFrame.CommoditiesBuyFrame, AuctionHouseFrame.CommoditiesSellList = false, false, false
-AuctionHouseFrame.CommoditiesSellFrame = false
+AuctionHouseFrame.BrowseResultsFrame, AuctionHouseFrame.CommoditiesSellFrame, AuctionHouseFrame.AuctionsFrame = false, false, false
+AuctionHouseFrame.CommoditiesBuyFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
+AuctionHouseFrame.CommoditiesBuyFrame.ItemList = list({ commodity })
+AuctionHouseFrame.CommoditiesSellList = list({ posted })
 AuctionHouseFrame.ItemBuyFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
 AuctionHouseFrame.ItemBuyFrame.ItemList = list({ cheap, dear, thin })
 AuctionHouseFrame.ItemSellList = list({})
@@ -443,18 +458,57 @@ runNextFrame()
 local function update() for _, painter in ipairs(painters) do painter.scripts.OnUpdate(painter) end end
 update()
 
+local function anchor(fontString, point)
+    local at = fontString and fontString.points and fontString.points[point]
+    return at and at[1], at and at[2], at and at[3]
+end
+
 check("two painters wait on Blizzard's auction house", #painters == 2, #painters)
-check("buy rows show the buyer's percentage", cheap.cells[2].apRelative and cheap.cells[2].apRelative.text == "<green>-30%</>", cheap.cells[2].apRelative and cheap.cells[2].apRelative.text)
-check("dear rows show red", dear.cells[2].apRelative.text == "<red>+30%</>", dear.cells[2].apRelative.text)
-check("the bid cell stays bare", cheap.cells[1].apRelative == nil)
-check("a row without a buyout shows nothing", thin.cells[2].apRelative.text == "")
-check("a deal glows", cheap.apDeal ~= nil and cheap.apDeal.shown)
-check("a dear row never glows", dear.apDeal == nil)
+check("buy rows show the buyer's percentage", cheap.fontString and cheap.fontString.text == "<green>-30%</>", cheap.fontString and cheap.fontString.text)
+check("dear rows show red", dear.fontString.text == "<red>+30%</>", dear.fontString.text)
+check("a row without a buyout shows nothing", thin.fontString.text == "")
+local to, toPoint, x = anchor(cheap.fontString, "RIGHT")
+check("the item buy column ends the quantity column", to == cheap.cells[3] and toPoint == "RIGHT" and x == -4, tostring(toPoint) .. " " .. tostring(x))
+check("no cell carries a percentage", cheap.cells[2].fontString == nil and cheap.cells[3].fontString == nil)
+local header = AuctionHouseFrame.ItemBuyFrame.ItemList.HeaderContainer.fontString
+to, toPoint, x = anchor(header, "RIGHT")
+check("the item buy header sits over the column", header and header.text == "Relative" and to == AuctionHouseFrame.ItemBuyFrame.ItemList.HeaderContainer and toPoint == "LEFT" and x == 296, tostring(x))
+check("a deal glows", cheap.texture ~= nil and cheap.texture.shown)
+check("a dear row never glows", dear.texture == nil)
+check("nothing is written to Blizzard's rows", rawget(cheap, "apRowData") == nil and rawget(cheap, "apDeal") == nil and rawget(cheap.cells[2], "apRelative") == nil)
+
+to, toPoint, x = anchor(commodity.fontString, "LEFT")
+check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-30%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
+to, toPoint, x = anchor(posted.fontString, "RIGHT")
+check("sell lists show the seller's percentage before the seller column", posted.fontString.text == "<green>+30%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
+check("sell lists never glow", posted.texture == nil)
+
+-- Blizzard hands cells to other rows when it lays a list out again
+cheap.cells, dear.cells = dear.cells, cheap.cells
+update()
+check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-30%</>")
+
 check("posting shows the seller's percentage", sellLabel and sellLabel.text == "<green>+10%</> <white>vs average</>", sellLabel and sellLabel.text)
 sellPrice = 80
 runNextFrame()
 update()
 check("posting follows the typed price", sellLabel.text == "<red>-20%</> <white>vs average</>", sellLabel.text)
+
+-- ===== Tooltip colours follow the open view =====
+check("posting views use the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)
+sellFrame.shown, AuctionatorSellingFrame.shown = false, false
+check("buying views use the buyer's colours", AP.Trend.Mode() == AP.Trend.UP_RED)
+local bidsTab = false
+AuctionHouseFrame.AuctionsFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
+AuctionHouseFrame.AuctionsFrame.IsDisplayingBids = function() return bidsTab end
+check("the player's own auctions use the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)
+bidsTab = true
+check("the player's bids use the buyer's colours", AP.Trend.Mode() == AP.Trend.UP_RED)
+AuctionHouseFrame.AuctionsFrame.shown = false
+AuctionatorCancellingFrame = CreateFrame("Frame")
+check("Auctionator's Cancelling tab uses the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)
+AuctionHouseFrame.shown = false
+check("outside the Auction House the seller's colours apply", AP.Trend.Mode() == AP.Trend.UP_GREEN)
 
 print(failures == 0 and "All checks passed." or (failures .. " checks failed."))
 os.exit(failures == 0 and 0 or 1)

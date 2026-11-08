@@ -94,6 +94,9 @@ end
 AP.Trend.UP_GREEN = "upGreen"
 AP.Trend.UP_RED = "upRed"
 
+-- Header of the percentage column in Auctionator's and Blizzard's lists
+AP.Trend.HEADER = "Relative"
+
 -- Whole-percent deviation of currentPrice from average; nil when either input is unusable
 function AP.Trend.Percent(currentPrice, average)
     if type(currentPrice) ~= "number" or currentPrice <= 0 then return nil end
@@ -127,14 +130,17 @@ local function addRow(tooltip, label, text)
 end
 
 local function shown(frame)
-    return frame ~= nil and frame:IsVisible()
+    return frame and frame:IsVisible()
 end
 
--- Seller's colours in the selling views, buyer's colours anywhere else in an open Auction House
+-- The player's side in the view that shows, the same rule as the lists: a seller outside the Auction House, while
+-- posting and among their own auctions, a buyer while browsing, buying and among their bids
 function AP.Trend.Mode()
     local ah = AuctionHouseFrame
     if not shown(ah) then return AP.Trend.UP_GREEN end
-    if shown(AuctionatorSellingFrame) or shown(ah.ItemSellFrame) or shown(ah.CommoditiesSellFrame) then
+    local auctions = ah.AuctionsFrame
+    if shown(AuctionatorSellingFrame) or shown(AuctionatorCancellingFrame) or shown(ah.ItemSellFrame) or shown(ah.CommoditiesSellFrame)
+        or (shown(auctions) and not auctions:IsDisplayingBids()) then
         return AP.Trend.UP_GREEN
     end
     return AP.Trend.UP_RED
