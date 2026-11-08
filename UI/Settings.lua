@@ -1,11 +1,7 @@
 local _, AP = ...
 
-local UI = LibStub("LibNativeUI-1.0")
-
 -- Options page under Options > AddOns
 AP.SettingsPanel = {}
-
-local TITLE = "Auctionator Market Value"
 
 local function plusPercent(value) return ("+%d%%"):format(value) end
 local function minusPercent(value) return ("-%d%%"):format(value) end
@@ -53,7 +49,7 @@ end
 function AP.SettingsPanel.Register()
     local db = AP.DB()
     local layout
-    category, layout = Settings.RegisterVerticalLayoutCategory(TITLE)
+    category, layout = Settings.RegisterVerticalLayoutCategory(AP.title)
 
     for _, section in ipairs(SECTIONS) do
         local title, controls = unpack(section)
@@ -81,7 +77,7 @@ function AP.SettingsPanel.Open()
     if not category then return end
 
     if InCombatLockdown() then
-        UI.Print(TITLE, "Opens after combat.")
+        AP.Print("Opens after combat.")
         if not waitingForCombat then
             waitingForCombat = true
             EventUtil.RegisterOnceFrameEventAndCallback("PLAYER_REGEN_ENABLED", function()
@@ -106,7 +102,7 @@ end
 
 function AuctionatorMarketValue_CompartmentEnter(_, menuButton)
     GameTooltip:SetOwner(menuButton, "ANCHOR_LEFT")
-    GameTooltip_SetTitle(GameTooltip, TITLE)
+    GameTooltip_SetTitle(GameTooltip, AP.title)
     GameTooltip_AddInstructionLine(GameTooltip, "Click to open the settings.")
     GameTooltip:Show()
 end

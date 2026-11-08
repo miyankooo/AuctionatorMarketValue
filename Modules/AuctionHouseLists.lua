@@ -28,8 +28,6 @@ local LISTS = {
 -- Blizzard's own row highlight, tinted green, so a deal reads as part of the list
 local DEAL_ATLAS = "auctionhouse-ui-row-highlight"
 
-local UI = LibStub("LibNativeUI-1.0")
-
 -- Per-row state lives here, keyed by Blizzard's rows, never on their frames
 local WEAK = { __mode = "k" }
 local texts, glows = setmetatable({}, WEAK), setmetatable({}, WEAK)
@@ -55,7 +53,7 @@ end
 local function textFor(row, list)
     local text = texts[row]
     if not text then
-        text = UI.CreateText(row, "body", "OVERLAY")
+        text = AP.CreateText(row, GameFontHighlight, "OVERLAY")
         text:SetJustifyH(list.point)
         texts[row] = text
     end
@@ -87,7 +85,7 @@ local function placeHeader(list, frame, anchor)
     list.headerX = x
 
     if not list.headerText then
-        list.headerText = UI.CreateText(container, "body", "OVERLAY")
+        list.headerText = AP.CreateText(container, GameFontHighlight, "OVERLAY")
         list.headerText:SetText(AP.Trend.HEADER)
     end
     list.headerText:ClearAllPoints()

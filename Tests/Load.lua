@@ -46,6 +46,7 @@ function frameMethods:Click(button) self.scripts.OnClick(self, button or "LeftBu
 function frameMethods:CreateFontString() return CreateFrame("FontString", nil, self) end
 function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) end
 function frameMethods:SetupMenu(fn) self.menu = fn end
+function frameMethods:SetAtlas(atlas) self.atlas = atlas end
 function frameMethods:SetPoint(point, relativeTo, relativePoint, x, y) self.points = self.points or {} self.points[point] = { relativeTo, relativePoint, x, y } end
 
 function CreateFrame(kind, name, parent, template)
@@ -60,6 +61,7 @@ UIParent = CreateFrame("Frame")
 GameTooltip, ItemRefTooltip = CreateFrame("GameTooltip"), CreateFrame("GameTooltip")
 
 -- ===== WoW API =====
+C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Title" and "Auctionator Market Value" or nil end }
 strmatch = string.match
 tinsert = table.insert
 unpack = unpack or table.unpack
@@ -278,6 +280,22 @@ AP.DB().showSimilar = false
 check("range rows grey out while Show Similar Items is off", registered.levelTolerance.enabledWhen() == false)
 AP.DB().showSimilar = true
 
+-- ===== Chat =====
+-- Every line goes through the one helper: the bracketed title in gold, the message uncoloured
+local printed = {}
+local realPrint = print
+local function capture(fn)
+    printed = {}
+    print = function(line) printed[#printed + 1] = line end
+    fn()
+    print = realPrint
+    return printed
+end
+InCombatLockdown = function() return true end
+capture(AP.SettingsPanel.Open)
+InCombatLockdown = function() return false end
+check("an open in combat prints one gold-prefixed line", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Opens after combat.", printed[1])
+
 -- ===== AH open =====
 check("Similar ensure", AP.SimilarItems.Ensure())
 check("Sale Scan ensure", AP.SaleScan.Ensure())
@@ -388,6 +406,16 @@ check("Sale Scan disabled while an item is slotted", not scanButton:IsEnabled())
 saleItem.itemInfo = nil
 saleItem:Update()
 check("Sale Scan enabled again after the slot clears", scanButton:IsEnabled())
+
+-- ===== Bag glow =====
+-- An item whose last price sits the sell threshold above its average takes the bags' green glow on its icon
+local bagButton = CreateFrame("Button")
+bagButton.Icon = CreateFrame("Texture", nil, bagButton)
+AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
+local bagGlow = rawget(bagButton, "addonGlow")
+check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow.atlas == "bags-glow-green")
+AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, {})
+check("an emptied bag slot drops the glow", bagGlow and not bagGlow.shown)
 
 -- ===== Parser =====
 local stats = AP.ItemStats.FullStatSet("equip: decreases the magical resistances of your spell targets by 10.")

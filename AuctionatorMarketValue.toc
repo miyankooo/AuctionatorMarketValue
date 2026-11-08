@@ -13,9 +13,6 @@
 ## AddonCompartmentFuncOnEnter: AuctionatorMarketValue_CompartmentEnter
 ## AddonCompartmentFuncOnLeave: AuctionatorMarketValue_CompartmentLeave
 
-Libs\LibStub\LibStub.lua
-Libs\LibNativeUI-1.0\LibNativeUI-1.0.lua
-
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua

@@ -5,7 +5,8 @@ local _, AP = ...
 -- runs inside Blizzard's posting code.
 AP.PostingCheck = {}
 
-local UI = LibStub("LibNativeUI-1.0")
+-- Between related controls
+local GAP = 8
 
 -- Blizzard's price row keeps its error icon 10 px right of the money input, 20 px wide, so the label starts past it
 local BLIZZARD_LABEL_OFFSET = 36
@@ -29,14 +30,14 @@ local WINDOWS = {
         frame = function() return AuctionatorSellingFrame and AuctionatorSellingFrame.SaleItemFrame end,
         price = function(frame) return frame.Price:GetAmount() end,
         item = function(frame) return frame.itemInfo and frame.itemInfo.itemLink end,
-        anchor = function(frame) return frame.Price.MoneyInput, UI.Space.gap end,
+        anchor = function(frame) return frame.Price.MoneyInput, GAP end,
     },
 }
 
 local function labelFor(window, frame)
     if not window.label then
         local anchor, offset = window.anchor(frame)
-        window.label = UI.CreateText(frame, "body", "OVERLAY")
+        window.label = AP.CreateText(frame, GameFontHighlight, "OVERLAY")
         window.label:SetPoint("LEFT", anchor, "RIGHT", offset, 0)
     end
     return window.label

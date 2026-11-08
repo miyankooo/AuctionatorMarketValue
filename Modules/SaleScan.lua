@@ -1,7 +1,5 @@
 local _, AP = ...
 
-local UI = LibStub("LibNativeUI-1.0")
-
 -- "Sale Scan": one live price search per distinct bag item, sequentially through Auctionator's throttle queue, recording each cheapest buyout in Auctionator's price database so the Relative column and the bag glow reflect current prices
 AP.SaleScan = {}
 
@@ -156,7 +154,7 @@ end
 
 local function addSlottedWarning(tooltip)
     if hasSaleItem() then
-        GameTooltip_AddErrorLine(tooltip, "Clear the item in the sale slot first.", true)
+        GameTooltip_AddErrorLine(tooltip, "Clear the item in the sale slot first.")
     end
 end
 
@@ -173,12 +171,12 @@ function AP.SaleScan.Ensure()
     local saleItem = sellingFrame and sellingFrame.SaleItemFrame
     if not inset or not saleItem then return false end
 
-    local button = UI.CreateButton(sellingFrame, BUTTON_LABEL, BUTTON_WIDTH)
-    UI.AttachTooltip(button, function(tooltip)
+    local button = AP.CreateButton(sellingFrame, BUTTON_LABEL, BUTTON_WIDTH)
+    AP.AttachTooltip(button, function(tooltip)
         GameTooltip_SetTitle(tooltip, BUTTON_LABEL)
-        GameTooltip_AddHighlightLine(tooltip, "Runs one live price search for every item in the bag panel, so the Relative column and the bag glow use current prices. Click again to cancel. Needs an empty sale slot.", true)
+        GameTooltip_AddNormalLine(tooltip, "Runs one live price search for every item in the bag panel, so the Relative column and the bag glow use current prices. Click again to cancel. Needs an empty sale slot.")
         addSlottedWarning(tooltip)
-    end, "ANCHOR_TOP")
+    end)
     button:SetPoint("TOPRIGHT", inset, "BOTTOMRIGHT", 0, -4)
     button:SetMotionScriptsWhileDisabled(true)
     button:SetScript("OnClick", function()

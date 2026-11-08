@@ -1,7 +1,5 @@
 local _, AP = ...
 
-local UI = LibStub("LibNativeUI-1.0")
-
 -- "Full Scan" on Auctionator's Shopping tab: starts Auctionator's own full scan in the scan mode its options set, as the
 -- Full Scan button on Auctionator's tab does, and shows the scan's progress in its label
 AP.FullScanButton = {}
@@ -84,10 +82,10 @@ end
 
 local function addStateLines(tooltip)
     if AP.Bridge.IsReplicateScan() then
-        GameTooltip_AddNormalLine(tooltip, "Alternate Scan Mode is on: one scan every 15 minutes.", true)
+        GameTooltip_AddNormalLine(tooltip, "Alternate Scan Mode is on: one scan every 15 minutes.")
     end
     if blockedBySearch() then
-        GameTooltip_AddErrorLine(tooltip, "Wait for the shopping search to finish first.", true)
+        GameTooltip_AddErrorLine(tooltip, "Wait for the shopping search to finish first.")
     end
 end
 
@@ -100,12 +98,12 @@ function AP.FullScanButton.Ensure()
     local exportButton = shoppingFrame and shoppingFrame.ExportCSV
     if not inset or not exportButton then return false end
 
-    local button = UI.CreateButton(exportButton, BUTTON_LABEL, BUTTON_WIDTH)
-    UI.AttachTooltip(button, function(tooltip)
+    local button = AP.CreateButton(exportButton, BUTTON_LABEL, BUTTON_WIDTH)
+    AP.AttachTooltip(button, function(tooltip)
         GameTooltip_SetTitle(tooltip, BUTTON_LABEL)
-        GameTooltip_AddHighlightLine(tooltip, "Runs Auctionator's full scan of the Auction House, like the Full Scan button on Auctionator's own tab, so every price and average is current.", true)
+        GameTooltip_AddNormalLine(tooltip, "Runs Auctionator's full scan of the Auction House, like the Full Scan button on Auctionator's own tab, so every price and average is current.")
         addStateLines(tooltip)
-    end, "ANCHOR_TOP")
+    end)
     button:SetPoint("LEFT", inset, "LEFT", 0, 0)
     button:SetPoint("BOTTOM", exportButton, "BOTTOM", 0, 0)
     button:SetScript("OnClick", function()

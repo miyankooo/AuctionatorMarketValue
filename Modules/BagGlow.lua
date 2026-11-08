@@ -2,29 +2,28 @@ local _, AP = ...
 
 AP.BagGlow = {}
 
--- The atlas the default bags use for new uncommon items; bright under ADD blending, so it stays visible next to green-quality borders
-local GLOW_ATLAS = "bags-glow-green"
-
 -- Glow once the last known price sits the sell threshold or more above an average with enough days behind it
 local function favorable(itemLink)
     local _, pct, days = AP.Trend.Relative(AP.Bridge.AuctionPrice(itemLink), itemLink)
     return pct ~= nil and days >= AP.Trend.MIN_DAYS and pct >= AP.DB().sellThresholdPct
 end
 
-local function apply(button, itemLink)
-    if itemLink and favorable(itemLink) then
-        local glow = button.apGlow
-        if not glow then
-            glow = button:CreateTexture(nil, "OVERLAY", nil, 1)
-            glow:SetAllPoints(button.Icon)
-            glow:SetBlendMode("ADD")
-            glow:SetAtlas(GLOW_ATLAS)
-            button.apGlow = glow
-        end
-        glow:Show()
-    elseif button.apGlow then
-        button.apGlow:Hide()
+-- Marks an item the addon recommends: the default bags' new-item glow on the item's icon, ADD blended so it stays
+-- visible next to a quality border. One texture per button, made on first need.
+local function ShowItemGlow(itemButton, shown)
+    local glow = itemButton.addonGlow
+    if shown and not glow then
+        glow = itemButton:CreateTexture(nil, "OVERLAY", nil, 1)
+        glow:SetAllPoints(itemButton.Icon)
+        glow:SetBlendMode("ADD")
+        glow:SetAtlas("bags-glow-green")
+        itemButton.addonGlow = glow
     end
+    if glow then glow:SetShown(shown) end
+end
+
+local function apply(button, itemLink)
+    ShowItemGlow(button, itemLink ~= nil and favorable(itemLink))
 end
 
 -- Every item button of the selling tab's bag panel, with its item info; nothing before the AH first opened
