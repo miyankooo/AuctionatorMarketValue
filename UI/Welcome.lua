@@ -13,7 +13,7 @@ local function SurfaceLink(label)
 end
 
 function AP.PrintWelcome()
-    AP.Print("Shows how every auction price compares to its 14-day average, in tooltips and auction lists. Open the "
+    AP.Print("Shows how every auction price compares to its market value, in tooltips and auction lists. Open the "
         .. SurfaceLink(SETTINGS) .. " or type /smv to set when items to sell and deals glow green. Click Full Scan "
         .. "on Auctionator's Shopping tab first, so prices exist.")
 end

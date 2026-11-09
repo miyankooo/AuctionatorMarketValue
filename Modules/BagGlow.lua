@@ -2,10 +2,10 @@ local _, AP = ...
 
 AP.BagGlow = {}
 
--- Glow once the last known price sits the sell threshold or more above an average with enough days behind it
+-- Glow once the last known price sits the sell threshold or more above a market value with enough data behind it
 local function favorable(itemLink)
-    local _, pct, days = AP.Trend.Relative(AP.Bridge.AuctionPrice(itemLink), itemLink)
-    return pct ~= nil and days >= AP.Trend.MIN_DAYS and pct >= AP.DB().sellThresholdPct
+    local _, pct, trusted = AP.Trend.Relative(AP.Bridge.AuctionPrice(itemLink), itemLink)
+    return trusted and pct >= AP.DB().sellThresholdPct
 end
 
 -- Marks an item the addon recommends: the default bags' new-item glow on the item's icon, ADD blended so it stays

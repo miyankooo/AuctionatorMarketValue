@@ -8,20 +8,19 @@ local function minusPercent(value) return ("-%d%%"):format(value) end
 -- Sections in display order; a row is key, label, help, then the slider's min, max, step and value formatter
 local SECTIONS = {
     { "Bag Glow", {
-        { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above the 14-day average.", 5, 100, 1, plusPercent },
+        { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above their market value.", 5, 100, 1, plusPercent },
     } },
     { "Deals", {
-        { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the 14-day average.", 5, 100, 1, minusPercent },
+        { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the market value.", 5, 100, 1, minusPercent },
     } },
 }
 
 -- What the addon does, where it works and what stays the game's own, before any row asks for a choice
-local INTRO = "Compares every auction price with its 14-day average from Auctionator's scans, and with TSM's market "
-    .. "value where TradeSkillMaster has one. The percentages show in item tooltips, in Auctionator's Shopping and "
-    .. "Selling tabs and in Blizzard's auction lists and sell windows. A gray percentage rests on fewer than 3 days "
-    .. "of prices.\n\n"
-    .. "Items worth selling glow green in the Selling tab's bag list, and deals glow green in Blizzard's buy lists. "
-    .. "Scanning, buying and posting stay Auctionator's and Blizzard's own."
+local INTRO = "Shows every auction price as a percentage of its market value: TSM's region sale average with "
+    .. "TradeSkillMaster installed, otherwise the 14-day average of Auctionator's scans. A gray percentage rests on "
+    .. "fewer than 3 days of prices.\n\n"
+    .. "The percentages show in item tooltips, in Auctionator's Shopping and Selling tabs and in Blizzard's auction "
+    .. "lists. Deals glow green in Blizzard's buy lists, and items worth selling in the Selling tab's bag list."
 
 -- The addon's page in Blizzard's Settings window, as its own canvas, copying the settings list's look
 -- (Blizzard_SettingsList.xml:14-30, Blizzard_SettingControls.xml, Blizzard_SettingControls.lua). Never a settings

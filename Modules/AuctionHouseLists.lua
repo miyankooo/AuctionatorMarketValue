@@ -1,8 +1,8 @@
 local _, AP = ...
 
 -- The relative value on Blizzard's own auction lists: a coloured percentage column beside each row's price, and buy
--- list rows at least the deal threshold below the average glow. A frame of the addon's own repaints the visible rows
--- while the Auction House shows, so no addon code ever runs inside Blizzard's list updates, whose row data later
+-- list rows at least the deal threshold below the market value glow. A frame of the addon's own repaints the visible
+-- rows while the Auction House shows, so no addon code ever runs inside Blizzard's list updates, whose row data later
 -- feeds the restricted purchase calls.
 AP.AuctionHouseLists = {}
 
@@ -109,13 +109,13 @@ local function paintRow(row, list)
     if paintedData[row] == rowData and paintedThreshold[row] == threshold then return end
     paintedData[row], paintedThreshold[row] = rowData, threshold
 
-    local value, pct, days
+    local value, pct, trusted
     if rowData then
-        value, pct, days = AP.Trend.Relative(rowData[list.price], AP.Trend.RefFor(rowData), list.buy and AP.Trend.UP_RED or AP.Trend.UP_GREEN)
+        value, pct, trusted = AP.Trend.Relative(rowData[list.price], AP.Trend.RefFor(rowData), list.buy and AP.Trend.UP_RED or AP.Trend.UP_GREEN)
     end
     text:SetText(value or "")
 
-    local isDeal = list.buy and pct ~= nil and days >= AP.Trend.MIN_DAYS and pct <= -threshold
+    local isDeal = list.buy and trusted and pct <= -threshold
     if isDeal or glows[row] then dealGlowFor(row):SetShown(isDeal) end
 end
 

@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Simple Market Value
-## Notes: Adds price history, a relative value column and similar-item pricing to Auctionator.
+## Notes: Shows every auction price against its market value: Auctionator's 14-day average, or TSM's region sale average with TradeSkillMaster.
 ## Author: miyanko
 ## Version: @project-version@
 ## Category: Auctions
@@ -16,15 +16,12 @@
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
-# The TSM app's price data: its age always, its values only while the TSM addon is off (Modules\TSM.lua)
-..\TradeSkillMaster_AppHelper\AppData.lua
 Modules\PriceHistory.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua
 Modules\SaleScan.lua
 Modules\FullScanButton.lua
 Modules\AuctionHouseLists.lua
-Modules\PostingCheck.lua
 UI\Settings.lua
 UI\Welcome.lua
 Modules\Bootstrap.lua

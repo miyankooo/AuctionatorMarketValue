@@ -1,6 +1,7 @@
--- Offline smoke test: loads every file in toc order against stubs of the WoW API and Auctionator, logs in and opens
--- the Auction House once, and checks the welcome line, the settings page, the tooltip rows, the Full Scan button and
--- its help tip, Sale Scan, Blizzard's auction lists and the slash commands.
+-- Offline smoke test: loads every file in toc order against stubs of the WoW API, Auctionator and TradeSkillMaster,
+-- logs in and opens the Auction House once, and checks the welcome line, the settings page, the tooltip rows, the
+-- Full Scan button and its help tip, Sale Scan, the relative columns in Auctionator's and Blizzard's auction lists,
+-- the market value with and without TSM, and the slash commands.
 -- Run from the addon folder: lua Tests/Load.lua
 
 local failures = 0
@@ -198,6 +199,7 @@ C_Item = {
 }
 C_AuctionHouse = { MakeItemKey = function(itemID) return { itemID = itemID } end }
 function FormatLargeNumber(n) return tostring(n) end
+function GetMoneyString(amount) return amount .. "c" end
 function IsModifiedClick() return false end
 SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856, IG_MAINMENU_OPTION_CHECKBOX_OFF = 857 }
 local sounds = {}
@@ -319,15 +321,26 @@ Auctionator = {
     FullScan = { Events = { ScanStart = "replicate_scan_start", ScanProgress = "replicate_scan_progress", ScanComplete = "replicate_scan_complete", ScanFailed = "replicate_scan_failed" } },
 }
 
+-- ===== TradeSkillMaster =====
+-- TSM's price sources: the region sale average in copper and the region sale rate, asked for in thousandths
+local tsmValues = { DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779 }
+local function tsmLookup(source) return tsmValues[source] end
+TSM_API = {
+    ToItemString = function() return "i:25" end,
+    GetCustomPriceValue = tsmLookup,
+}
+
 -- ===== Load in toc order =====
-local AP = {}
-for line in io.lines("SimpleMarketValue.toc") do
-    -- Other addons' files, like TSM's AppData.lua, are absent here, as in a game without them
-    if line:match("%.lua$") and not line:match("^#") and not line:match("^%.%.") then
-        local path = line:gsub("\\", "/")
-        assert(loadfile(path))("SimpleMarketValue", AP)
+local function loadAddon(ns)
+    for line in io.lines("SimpleMarketValue.toc") do
+        if line:match("%.lua$") and not line:match("^#") then
+            local path = line:gsub("\\", "/")
+            assert(loadfile(path))("SimpleMarketValue", ns)
+        end
     end
 end
+local AP = {}
+loadAddon(AP)
 check("files load in toc order", true)
 
 -- The AH frames Auctionator creates on first open
@@ -363,7 +376,7 @@ check("the first load marks the first run and prints nothing", AP.firstRun == tr
 capture(runAll(loggedIn))
 local welcome = printed[1] or ""
 check("login prints exactly one welcome line", #printed == 1, #printed)
-check("the welcome line opens with the gold title", welcome:find("<gold>[Simple Market Value]</>: Shows how", 1, true) == 1, welcome)
+check("the welcome line opens with the gold title", welcome:find("<gold>[Simple Market Value]</>: Shows how every auction price compares to its market value", 1, true) == 1, welcome)
 check("the welcome line links the settings and names /smv", welcome:find("Open the <gold>|Haddon:SimpleMarketValue|h[Settings]|h</> or type /smv to", 1, true) ~= nil, welcome)
 
 local onItemRef = itemRefHandlers[AP]
@@ -377,14 +390,11 @@ check("another addon's link or a secret one opens nothing", #opened == 1, #opene
 do
     local later = {}
     addonLoaded.SimpleMarketValue = {}
-    SimpleMarketValueDB.seenTimes = { Forever = { old = os.time() - 15 * 86400, recent = os.time() - 86400 } }
     local loginCallbacks = #loggedIn
     for _, path in ipairs({ "Modules/Init.lua", "Modules/Bridge.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("SimpleMarketValue", later) end
     capture(runAll(addonLoaded.SimpleMarketValue))
     capture(function() for index = loginCallbacks + 1, #loggedIn do loggedIn[index]() end end)
     check("a later login prints nothing", later.firstRun == false and #printed == 0, #printed)
-    local times = SimpleMarketValueDB.seenTimes.Forever
-    check("price times past the 14-day window are dropped at load", times.old == nil and times.recent ~= nil)
 end
 
 -- ===== Settings =====
@@ -400,7 +410,7 @@ local function at(frame, point)
 end
 
 check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Simple Market Value", canvas.name)
-check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Compares every auction price") ~= nil)
+check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Shows every auction price as a percentage of its market value") ~= nil)
 check("two sliders and no checkbox", #sliders == 2 and templated.SettingsCheckboxTemplate == nil, #sliders)
 check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold", table.concat(labels, ", "))
 check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Bag Glow, Deals", table.concat(headers, ", "))
@@ -444,84 +454,54 @@ check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
 
 -- ===== Tooltip rows =====
-tooltipPostCall(GameTooltip)
-check("tooltip shows the Auctionator block", tooltipLines[2] == "# Auctionator" and tooltipLines[3] == "14-day average (seen today)=100c" and tooltipLines[4] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
-historyDays = 1
-runNextFrame()
-tooltipLines = {}
-tooltipPostCall(GameTooltip)
-check("thin history greys the percentage", tooltipLines[3] == "14-day average (seen today)=100c" and tooltipLines[4] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
-historyDays, historyAge = 3, 7
-runNextFrame()
-tooltipLines = {}
-tooltipPostCall(GameTooltip)
-check("the average shows when its newest price was seen", tooltipLines[3] == "14-day average (seen 7 days ago)=100c", table.concat(tooltipLines, " | "))
-historyAge = 1
-runNextFrame()
-tooltipLines = {}
-tooltipPostCall(GameTooltip)
-check("one day ago reads singular", tooltipLines[3] == "14-day average (seen 1 day ago)=100c", table.concat(tooltipLines, " | "))
-historyAge = 0
-Auctionator.Database:SetPrice("25", 100)
-runNextFrame()
-tooltipLines = {}
-tooltipPostCall(GameTooltip)
-check("a price the addon saw recorded shows its age to the minute", tooltipLines[3] == "14-day average (seen 1 minute ago)=100c", table.concat(tooltipLines, " | "))
-time = function() return os.time() - 5 * 3600 end
-Auctionator.Database:SetPrice("25", 100)
-time = os.time
-runNextFrame()
-tooltipLines = {}
-tooltipPostCall(GameTooltip)
-check("older price times show in hours", tooltipLines[3] == "14-day average (seen 5 hours ago)=100c", table.concat(tooltipLines, " | "))
-
--- ===== TSM rows =====
-check("no TSM block without TSM", #tooltipLines == 4, #tooltipLines)
-TSM_API = {
-    ToItemString = function() return "i:25" end,
-    GetCustomPriceValue = function(source) return source == "DBMarket" and 80 or nil end,
-}
-tooltipLines = {}
-runNextFrame()
-tooltipPostCall(GameTooltip)
-check("the TSM block follows the Auctionator block", tooltipLines[5] == "" and tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
--- Without the TSM app's file its age is unknown and the label stays bare
--- Launch day on a fresh realm: TSM loaded with no scan yet, or not ready and throwing
-for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
-    TSM_API.GetCustomPriceValue = lookup
+-- Auctionator's last price 120 against its 14-day average 100, and against TSM's region sale average 140 at a sale
+-- rate of 0.779; outside the Auction House in the seller's colours
+local function tooltipText()
     tooltipLines = {}
     runNextFrame()
     tooltipPostCall(GameTooltip)
-    check("TSM without a figure keeps only the Auctionator block", #tooltipLines == 4, table.concat(tooltipLines, " | "))
+    return table.concat(tooltipLines, " | ")
 end
-TSM_API = nil
+local text = tooltipText()
+check("the tooltip shows one Relative Market Value section, Auctionator first", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</> | TSM region sale average=140c | TSM sale rate=78% | TSM relative value=<red>-14%</>", text)
+historyDays = 1
+text = tooltipText()
+check("thin history greys the Auctionator percentage", text:find("Auctionator relative value=<gray>+20%</>", 1, true) ~= nil, text)
+historyDays = 0
+text = tooltipText()
+check("without Auctionator history the TSM rows stand alone", text == " | # Relative Market Value | TSM region sale average=140c | TSM sale rate=78% | TSM relative value=<red>-14%</>", text)
+historyDays = 3
+-- Launch day on a fresh realm: TSM with no data yet, or not ready and throwing
+for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
+    TSM_API.GetCustomPriceValue = lookup
+    text = tooltipText()
+    check("TSM without a figure leaves Auctionator's rows alone", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</>", text)
+end
+historyDays = 0
+text = tooltipText()
+check("no section without either average", text == "", text)
+TSM_API.GetCustomPriceValue, historyDays = tsmLookup, 3
 
--- ===== TSM app data =====
--- With the TSM addon off, the same figure comes from the TSM app's AppData.lua, for this ruleset, faction and region only
-local downloadTime = os.time() - 3 * 3600
-local function block(fields, rows) return ("return {downloadTime=%d,fields={%s},data={%s}}"):format(downloadTime, fields, rows) end
-TSM_API = { ToItemString = function() return "i:25" end, GetCustomPriceValue = function() return 80 end }
-AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","marketValue"', "{25,1}"))
-check("the TSM addon's value carries the app data's age", select(2, AP.TSM.MarketValueFor("item:25")) == downloadTime)
-tooltipLines = {}
-runNextFrame()
-tooltipPostCall(GameTooltip)
-check("the TSM label shows the data's age in hours", tooltipLines[7] == "Market value (updated 3 hours ago)=80c", table.concat(tooltipLines, " | "))
+-- ===== Market value =====
+-- A price of 70: -50% against TSM's 140, -30% against Auctionator's 100
+local function relative(price)
+    runNextFrame()
+    local _, pct, trusted = AP.Trend.Relative(price, "item:25")
+    return pct, trusted
+end
+local pct, trusted = relative(70)
+check("the market value is TSM's where TSM has one", pct == -50 and trusted, pct)
+local tsmApi = TSM_API
 TSM_API = nil
-check("app data is skipped while the TSM addon is loaded", AP.TSM.MarketValueFor("item:25") == nil)
-downloadTime = os.time() - 90
-AP.LoadData("APP_INFO", "Global", "return {}")
-AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "Normal-Alliance", block('"itemString","marketValue"', "{25,99}"))
-AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","minBuyout","marketValue"', '{25,1,2g},{"i:26::i100",1,1}'))
-AP.LoadData("AUCTIONDB_COMMODITY_DATA", "Forever-HC-EU", block('"itemString","marketValue"', "{27,5}"))
-AP.LoadData("AUCTIONDB_COMMODITY_DATA", "Forever-EU", block('"itemString","marketValue"', "{27,10000001}"))
-check("app data reads this realm's market value", AP.TSM.MarketValueFor({ itemID = 25 }) == 80, AP.TSM.MarketValueFor({ itemID = 25 }))
-check("app data unpacks values over 32 bits", AP.TSM.MarketValueFor("item:27") == 1 + 32 * 2 ^ 30, AP.TSM.MarketValueFor("item:27"))
-check("app data has no figure for unknown items", AP.TSM.MarketValueFor("item:28") == nil)
-tooltipLines = {}
-runNextFrame()
-tooltipPostCall(GameTooltip)
-check("app data fills the TSM block without the TSM addon", tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value (updated 1 minute ago)=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
+pct, trusted = relative(70)
+check("without TSM it is Auctionator's 14-day average", pct == -30 and trusted, pct)
+historyDays = 2
+pct, trusted = relative(70)
+check("thin Auctionator history moves no glow", pct == -30 and not trusted, pct)
+historyDays = 3
+text = tooltipText()
+check("without TSM the tooltip shows Auctionator's rows alone", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</>", text)
+TSM_API = tsmApi
 
 -- ===== Memoised average =====
 runNextFrame()
@@ -571,6 +551,19 @@ check("label shows the scan progress", fullScan.text == "Full Scan 42%", fullSca
 Auctionator.EventBus:Fire(nil, "replicate_scan_complete")
 check("a finished scan shows green 100%", fullScan.text == "<green>Full Scan 100%</>", fullScan.text)
 
+-- ===== Auctionator's Relative column =====
+-- A row priced 70: -50% against TSM's 140, -30% against Auctionator's 100 where TSM has no figure
+local entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
+runNextFrame()
+AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
+check("Auctionator's column shows TSM's percentage", entries[1].apTrendText == "<green>-50%</>" and entries[1].apTrendValue == -50, entries[1].apTrendText)
+tsmValues.DBRegionSaleAvg = nil
+entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
+runNextFrame()
+AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
+check("an item without a TSM figure shows Auctionator's", entries[1].apTrendText == "<green>-30%</>" and entries[1].apTrendValue == -30, entries[1].apTrendText)
+tsmValues.DBRegionSaleAvg = 140
+
 -- ===== Sale Scan disabled while slotted =====
 local saleItem = AuctionatorSellingFrame.SaleItemFrame
 local scanButton = upvalue(AP.SaleScan.Ensure, "scanButton")
@@ -587,7 +580,14 @@ check("Sale Scan enabled again after the slot clears", scanButton:IsEnabled())
 local bagButton = CreateFrame("Button")
 bagButton.Icon = CreateFrame("Texture", nil, bagButton)
 bagButton.CreateTexture = function(self) self.texture = CreateFrame("Texture", nil, self) return self.texture end
+-- The last price 120 sits 14% below TSM's 140 but 20% above Auctionator's 100, so only TSM's absence lights it
+runNextFrame()
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
+check("TSM's market value comes first for the bag glow", bagButton.texture == nil)
+TSM_API = nil
+runNextFrame()
+AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
+TSM_API = tsmApi
 local bagGlow = bagButton.texture
 check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow.atlas == "bags-glow-green")
 check("the glow is kept off Auctionator's button", rawget(bagButton, "addonGlow") == nil)
@@ -639,11 +639,8 @@ AuctionHouseFrame.ItemSellList = list({})
 AuctionHouseFrame.ItemSellList.shown = false
 AuctionatorSellingFrame.SaleItemFrame.shown = false
 
-local sellPrice, sellLabel = 110, nil
+-- Blizzard's item sell window, open, so the views read as posting
 local sellFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
-sellFrame.PriceInput = { GetAmount = function() return sellPrice end, MoneyInputFrame = CreateFrame("Frame") }
-sellFrame.GetItem = function() return {} end
-sellFrame.CreateFontString = function(self) sellLabel = CreateFrame("FontString", nil, self) return sellLabel end
 AuctionHouseFrame.ItemSellFrame = sellFrame
 
 local painters = {}
@@ -664,9 +661,9 @@ local function anchor(fontString, point)
     return at and at[1], at and at[2], at and at[3]
 end
 
-check("two painters wait on Blizzard's auction house", #painters == 2, #painters)
-check("buy rows show the buyer's percentage", cheap.fontString and cheap.fontString.text == "<green>-30%</>", cheap.fontString and cheap.fontString.text)
-check("dear rows show red", dear.fontString.text == "<red>+30%</>", dear.fontString.text)
+check("one painter waits on Blizzard's auction house", #painters == 1, #painters)
+check("buy rows show TSM's percentage in the buyer's colours", cheap.fontString and cheap.fontString.text == "<green>-50%</>", cheap.fontString and cheap.fontString.text)
+check("a row nearer the market value shows its smaller cut", dear.fontString.text == "<green>-7%</>", dear.fontString.text)
 check("a row without a buyout shows nothing", thin.fontString.text == "")
 local to, toPoint, x = anchor(cheap.fontString, "RIGHT")
 check("the item buy column ends the quantity column", to == cheap.cells[3] and toPoint == "RIGHT" and x == -4, tostring(toPoint) .. " " .. tostring(x))
@@ -674,26 +671,20 @@ check("no cell carries a percentage", cheap.cells[2].fontString == nil and cheap
 local header = AuctionHouseFrame.ItemBuyFrame.ItemList.HeaderContainer.fontString
 to, toPoint, x = anchor(header, "RIGHT")
 check("the item buy header sits over the column", header and header.text == "Relative" and to == AuctionHouseFrame.ItemBuyFrame.ItemList.HeaderContainer and toPoint == "LEFT" and x == 296, tostring(x))
-check("a deal glows", cheap.texture ~= nil and cheap.texture.shown)
-check("a dear row never glows", dear.texture == nil)
+check("a deal by TSM's percentage glows", cheap.texture ~= nil and cheap.texture.shown)
+check("a row above the deal threshold by TSM never glows", dear.texture == nil)
 check("nothing is written to Blizzard's rows", rawget(cheap, "apRowData") == nil and rawget(cheap, "apDeal") == nil and rawget(cheap.cells[2], "apRelative") == nil)
 
 to, toPoint, x = anchor(commodity.fontString, "LEFT")
-check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-30%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
+check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-50%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
 to, toPoint, x = anchor(posted.fontString, "RIGHT")
-check("sell lists show the seller's percentage before the seller column", posted.fontString.text == "<green>+30%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
+check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<red>-7%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
 check("sell lists never glow", posted.texture == nil)
 
 -- Blizzard hands cells to other rows when it lays a list out again
 cheap.cells, dear.cells = dear.cells, cheap.cells
 update()
-check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-30%</>")
-
-check("posting shows the seller's percentage", sellLabel and sellLabel.text == "<green>+10%</> <white>vs average</>", sellLabel and sellLabel.text)
-sellPrice = 80
-runNextFrame()
-update()
-check("posting follows the typed price", sellLabel.text == "<red>-20%</> <white>vs average</>", sellLabel.text)
+check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-50%</>")
 
 -- ===== Tooltip colours follow the open view =====
 check("posting views use the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)

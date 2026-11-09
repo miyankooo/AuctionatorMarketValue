@@ -1,16 +1,17 @@
 local _, AP = ...
 
--- Price-history statistics, the relative value and the item tooltip rows
+-- The relative value: a price against the item's market value, TSM's region sale average where TradeSkillMaster has
+-- one, otherwise the 14-day average of Auctionator's scans. Also the item tooltip rows
 AP.Trend = {}
 
--- ===== Price-history statistics =====
+-- ===== Auctionator's 14-day average =====
 -- Two weeks of daily minimums: long enough to smooth single scans, short enough to follow the market
 local HISTORY_WINDOW_DAYS = 14
 
 -- Below this a quartile trim is too thin to stop same-side freak days, the median is safer
 local MIN_TRIM_SAMPLES = 8
 
--- An average built from fewer days of history says little, so its percentage shows in grey
+-- An average built from fewer days of history says little, so its percentage shows in grey and moves no glow
 AP.Trend.MIN_DAYS = 3
 
 local function medianOf(sorted)
@@ -43,22 +44,20 @@ local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key, the days it rests on and the days since
--- the newest of them; nil without usable history
+-- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without
+-- usable history
 local function averageFor(dbKey)
-    local today = currentScanDay()
-    local cutoffDay = today - HISTORY_WINDOW_DAYS
-    local recent, newestDay = {}, nil
+    local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
+    local recent = {}
     for _, entry in ipairs(AP.Bridge.PriceHistory(dbKey)) do
         local day = tonumber(entry.rawDay)
         local minSeen = tonumber(entry.minSeen)
         if (not day or day > cutoffDay) and minSeen and minSeen > 0 then
             recent[#recent + 1] = minSeen
-            if day and (not newestDay or day > newestDay) then newestDay = day end
         end
     end
     if #recent == 0 then return nil end
-    return { math.floor(interquartileMean(recent) + 0.5), #recent, newestDay and math.max(0, today - newestDay) }
+    return { math.floor(interquartileMean(recent) + 0.5), #recent }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that
@@ -75,11 +74,12 @@ local function cachedAverage(dbKey)
     return frameAverages[dbKey] or nil
 end
 
--- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it, the days since its newest price and that price's time when the addon saw it
+-- First key with usable history, so a suffix or item-level key measures against its own market before the pooled
+-- base item, matching Auctionator's price lookups, and the days of history behind it
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average[1] > 0 then return average[1], average[2], average[3], AP.Bridge.SeenTime(dbKey) end
+        if average and average[1] > 0 then return average[1], average[2] end
     end
     return nil
 end
@@ -92,7 +92,7 @@ function AP.Trend.RefFor(entry)
     return nil
 end
 
--- ===== Trend percentage =====
+-- ===== Relative value =====
 -- Colour modes: UP_GREEN for selling (an increase is good), UP_RED for buying
 AP.Trend.UP_GREEN = "upGreen"
 AP.Trend.UP_RED = "upRed"
@@ -118,11 +118,18 @@ function AP.Trend.Colorize(pct, mode, days)
     return color:WrapTextInColorCode(string.format("%+d%%", pct))
 end
 
--- A price against its item's average: the coloured text, the percentage and the days of history; nil text without usable history
+-- A price against the item's market value, in the colours of mode: TSM's region sale average where TSM has one,
+-- otherwise Auctionator's 14-day average. Returns the coloured text, the percentage and whether enough data backs it
+-- for a glow, which a thin Auctionator history does not; nil text without a market value
 function AP.Trend.Relative(price, itemRef, mode)
+    local saleAverage = AP.TSM.SaleAverage(itemRef)
+    if saleAverage then
+        local pct = AP.Trend.Percent(price, saleAverage)
+        return AP.Trend.Colorize(pct, mode), pct, pct ~= nil
+    end
     local average, days = AP.Trend.AverageFor(itemRef)
     local pct = AP.Trend.Percent(price, average)
-    return AP.Trend.Colorize(pct, mode, days), pct, days
+    return AP.Trend.Colorize(pct, mode, days), pct, pct ~= nil and days >= AP.Trend.MIN_DAYS
 end
 
 -- ===== Item tooltip rows =====
@@ -149,57 +156,32 @@ function AP.Trend.Mode()
     return AP.Trend.UP_RED
 end
 
--- A blank line and a gold heading start each source's block, so Auctionator's and TSM's figures read apart
-local function addBlock(tooltip, heading)
-    GameTooltip_AddBlankLineToTooltip(tooltip)
-    GameTooltip_AddNormalLine(tooltip, heading)
+local function money(amount)
+    return amount and GetMoneyString(amount, true)
 end
 
-local function count(amount, unit)
-    return ("%d %s%s ago"):format(amount, unit, amount == 1 and "" or "s")
+-- "78%" for a sale rate of 0.779
+local function share(rate)
+    return rate and ("%d%%"):format(math.floor(rate * 100 + 0.5))
 end
 
--- "3 hours ago" for a time(): minutes within the hour, hours within two days, days after that
-local function ago(when)
-    local minutes = math.max(0, math.floor((time() - when) / 60))
-    return (minutes < 60 and count(math.max(1, minutes), "minute"))
-        or (minutes < 48 * 60 and count(math.floor(minutes / 60), "hour"))
-        or count(math.floor(minutes / 1440), "day")
-end
-
--- " (seen 12 minutes ago)": when Auctionator last got a price, to the minute once the addon saw it get one, otherwise
--- in Auctionator's whole scan days
-local function seenText(daysAgo, seenTime)
-    if type(seenTime) == "number" then return (" (seen %s)"):format(ago(seenTime)) end
-    if not daysAgo then return "" end
-    return (" (seen %s)"):format(daysAgo == 0 and "today" or count(daysAgo, "day"))
-end
-
--- " (updated 3 hours ago)": the age of the TSM app's download, which refreshes about hourly
-local function updatedText(updateTime)
-    if type(updateTime) ~= "number" then return "" end
-    return (" (updated %s)"):format(ago(updateTime))
-end
-
--- An Auctionator block with the average and the last known price against it, then a TSM block with TSM's market value
--- and the same comparison when TSM has one; nothing without either, and Auctionator's own lines are left untouched.
--- Each value's label carries the age of its newest data
+-- After a blank line, one gold heading over whatever figures exist: Auctionator's 14-day average and the last price
+-- relative to it, then TSM's region sale average, its sale rate and the same last price relative to that average. Each
+-- row shows only with its figure, the section not at all without an average, and the lines of TSM and Auctionator
+-- themselves are left untouched
 local function addPriceRows(tooltip, itemLink)
-    local average, days, daysAgo, seenTime = AP.Trend.AverageFor(itemLink)
-    local tsmMarket, tsmUpdated = AP.TSM.MarketValueFor(itemLink)
-    if not (average or tsmMarket) then return end
+    local average, days = AP.Trend.AverageFor(itemLink)
+    local saleAverage = AP.TSM.SaleAverage(itemLink)
+    if not (average or saleAverage) then return end
 
-    local auction = AP.Bridge.AuctionPrice(itemLink)
-    if average then
-        addBlock(tooltip, "Auctionator")
-        addRow(tooltip, "14-day average" .. seenText(daysAgo, seenTime), AP.Bridge.Money(average))
-        addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), AP.Trend.Mode(), days))
-    end
-    if tsmMarket then
-        addBlock(tooltip, "TSM")
-        addRow(tooltip, "Market value" .. updatedText(tsmUpdated), AP.Bridge.Money(tsmMarket))
-        addRow(tooltip, "Last price vs market value", AP.Trend.Colorize(AP.Trend.Percent(auction, tsmMarket), AP.Trend.Mode()))
-    end
+    local mode, lastPrice = AP.Trend.Mode(), AP.Bridge.AuctionPrice(itemLink)
+    GameTooltip_AddBlankLineToTooltip(tooltip)
+    GameTooltip_AddNormalLine(tooltip, "Relative Market Value")
+    addRow(tooltip, "Auctionator 14-day average", money(average))
+    addRow(tooltip, "Auctionator relative value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
+    addRow(tooltip, "TSM region sale average", money(saleAverage))
+    addRow(tooltip, "TSM sale rate", share(AP.TSM.SaleRate(itemLink)))
+    addRow(tooltip, "TSM relative value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
 
     -- Resize so the added lines render inside the tooltip frame
     tooltip:Show()
