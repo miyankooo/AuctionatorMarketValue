@@ -1,4 +1,4 @@
-package-as: AuctionatorMarketValue
+package-as: SimpleMarketValue
 
 manual-changelog:
   filename: CHANGELOG.md

@@ -19,22 +19,22 @@ local seededDB
 
 -- Account-wide store for the settings. Seeds missing defaults itself, so readers never see nil even before the settings panel registers
 function AP.DB()
-    if type(AuctionatorMarketValueDB) ~= "table" then
-        AuctionatorMarketValueDB = {}
+    if type(SimpleMarketValueDB) ~= "table" then
+        SimpleMarketValueDB = {}
     end
-    if seededDB ~= AuctionatorMarketValueDB then
+    if seededDB ~= SimpleMarketValueDB then
         for key, value in pairs(AP.Defaults) do
-            if AuctionatorMarketValueDB[key] == nil then AuctionatorMarketValueDB[key] = value end
+            if SimpleMarketValueDB[key] == nil then SimpleMarketValueDB[key] = value end
         end
-        seededDB = AuctionatorMarketValueDB
+        seededDB = SimpleMarketValueDB
     end
-    return AuctionatorMarketValueDB
+    return SimpleMarketValueDB
 end
 
 -- An absent saved table at load marks the account's first run, which the welcome line waits for. The table is made
 -- now, so the next login is no first run
 EventUtil.ContinueOnAddOnLoaded(addonName, function()
-    AP.firstRun = AuctionatorMarketValueDB == nil
+    AP.firstRun = SimpleMarketValueDB == nil
     AP.DB()
 end)
 

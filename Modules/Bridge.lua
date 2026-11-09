@@ -125,7 +125,7 @@ end
 local source = {}
 local function fire(eventName, ...)
     Auctionator.EventBus
-        :RegisterSource(source, "AuctionatorMarketValue")
+        :RegisterSource(source, "SimpleMarketValue")
         :Fire(source, eventName, ...)
         :UnregisterSource(source)
 end

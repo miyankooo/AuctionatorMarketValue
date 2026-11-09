@@ -234,34 +234,33 @@ EventUtil.ContinueOnPlayerLogin(function()
     RegisterPanel(panel)
 end)
 
--- One long command and one short alias; /ap already belongs to Blizzard's commentator commands, so the short form is
--- /amv. The bare command opens the settings; help and intro are the shared words, and any other word prints the hint.
-SLASH_AUCTIONATORMARKETVALUE1, SLASH_AUCTIONATORMARKETVALUE2 = "/auctionatormarketvalue", "/amv"
-SlashCmdList.AUCTIONATORMARKETVALUE = function(message)
+-- One long command and the short alias /smv. The bare command opens the settings; help and intro are the shared words, and any other word prints the hint.
+SLASH_SIMPLEMARKETVALUE1, SLASH_SIMPLEMARKETVALUE2 = "/simplemarketvalue", "/smv"
+SlashCmdList.SIMPLEMARKETVALUE = function(message)
     local command = strtrim(message or ""):lower()
     if command == "" then
         AP.OpenSettings()
     elseif command == "help" or command == "?" then
-        AP.Print("Type /amv for the settings, /amv intro to see the welcome line and the tip again, or /amv help for this list.")
+        AP.Print("Type /smv for the settings, /smv intro to see the welcome line and the tip again, or /smv help for this list.")
     elseif command == "intro" then
         AP.ReplayIntro()
     else
-        AP.Print("Unknown command. Type /amv help for the list.")
+        AP.Print("Unknown command. Type /smv help for the list.")
     end
 end
 
 -- Addon Compartment entry points named in the toc. Blizzard calls them with the addon name first, then the menu row.
-function AuctionatorMarketValue_CompartmentClick()
+function SimpleMarketValue_CompartmentClick()
     AP.OpenSettings()
 end
 
-function AuctionatorMarketValue_CompartmentEnter(_, menuButton)
+function SimpleMarketValue_CompartmentEnter(_, menuButton)
     GameTooltip:SetOwner(menuButton, "ANCHOR_LEFT")
     GameTooltip_SetTitle(GameTooltip, AP.title)
     GameTooltip_AddInstructionLine(GameTooltip, "Click to open the settings.")
     GameTooltip:Show()
 end
 
-function AuctionatorMarketValue_CompartmentLeave()
+function SimpleMarketValue_CompartmentLeave()
     GameTooltip:Hide()
 end

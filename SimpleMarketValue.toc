@@ -1,5 +1,5 @@
 ## Interface: 16001
-## Title: Auctionator Market Value
+## Title: Simple Market Value
 ## Notes: Adds price history, a relative value column and similar-item pricing to Auctionator.
 ## Author: miyanko
 ## Version: @project-version@
@@ -8,10 +8,10 @@
 ## X-Curse-Project-ID: 1785941
 ## Dependencies: Auctionator
 ## OptionalDeps: TradeSkillMaster
-## SavedVariables: AuctionatorMarketValueDB
-## AddonCompartmentFunc: AuctionatorMarketValue_CompartmentClick
-## AddonCompartmentFuncOnEnter: AuctionatorMarketValue_CompartmentEnter
-## AddonCompartmentFuncOnLeave: AuctionatorMarketValue_CompartmentLeave
+## SavedVariables: SimpleMarketValueDB
+## AddonCompartmentFunc: SimpleMarketValue_CompartmentClick
+## AddonCompartmentFuncOnEnter: SimpleMarketValue_CompartmentEnter
+## AddonCompartmentFuncOnLeave: SimpleMarketValue_CompartmentLeave
 
 Modules\Init.lua
 Modules\Bridge.lua

@@ -1,6 +1,6 @@
-<img src="https://raw.githubusercontent.com/miyankooo/AuctionatorMarketValue/main/.github/icon.png" width="64" height="64" alt="">
+<img src="https://raw.githubusercontent.com/miyankooo/SimpleMarketValue/main/.github/icon.png" width="64" height="64" alt="">
 
-# Auctionator Market Value
+# Simple Market Value
 
 A WoW Forever addon that shows how every auction price compares to its market value: the 14-day average from Auctionator's scans and, with TradeSkillMaster, TSM's market value. It works in Auctionator and in Blizzard's Auction House. Needs Auctionator.
 
@@ -20,4 +20,4 @@ A WoW Forever addon that shows how every auction price compares to its market va
 1. Open the Auction House and click Full Scan in Auctionator's Shopping tab, or Sale Scan in its Selling tab, so prices exist.
 2. Hover an item to see its average. A gray percentage rests on fewer than 3 days of prices. With the TradeSkillMaster addon or its desktop app installed, the TSM rows appear on their own.
 3. Browse and shop as usual. Green rows are deals. Sort by Relative to find the cheapest listings.
-4. Type `/amv`, or pick Auctionator Market Value in the addon menu, to set the Sell Threshold, the Deal Threshold and the Similar Items ranges. `/amv help` lists the commands, `/amv intro` shows the welcome line and the Full Scan tip again.
+4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold, the Deal Threshold and the Similar Items ranges. `/smv help` lists the commands, `/smv intro` shows the welcome line and the Full Scan tip again.

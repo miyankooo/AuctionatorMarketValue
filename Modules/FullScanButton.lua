@@ -98,7 +98,7 @@ end
 -- taint the help tips Blizzard shows later. It shows each time the target shows until the player closes it or uses
 -- the feature, then never again on the account; it hides with the target without being marked. Reset runs before
 -- every Init: only Blizzard's pool resets a tip, and Init leaves `acknowledged` set (HelpTip.lua:419-431, 495, 687),
--- so a tip closed once and brought back by /amv intro would count as seen when it merely hides with its target.
+-- so a tip closed once and brought back by /smv intro would count as seen when it merely hides with its target.
 local function AttachTip(target, text, targetPoint, relativeRegion)
     local tip
     local info = {
@@ -129,7 +129,7 @@ local function AttachTip(target, text, targetPoint, relativeRegion)
     return ShowTip, Retire
 end
 
--- /amv intro brings the tip back now while Full Scan shows, otherwise at its next show
+-- /smv intro brings the tip back now while Full Scan shows, otherwise at its next show
 function AP.FullScanButton.ShowTip()
     if showTip and scanButton:IsVisible() then showTip() end
 end

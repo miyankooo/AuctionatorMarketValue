@@ -129,7 +129,7 @@ UIParent = CreateFrame("Frame")
 GameTooltip, ItemRefTooltip, SettingsTooltip = CreateFrame("GameTooltip"), CreateFrame("GameTooltip"), CreateFrame("GameTooltip")
 
 -- ===== WoW API =====
-C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Title" and "Auctionator Market Value" or nil end }
+C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Title" and "Simple Market Value" or nil end }
 strmatch = string.match
 function strtrim(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
 tinsert = table.insert
@@ -326,11 +326,11 @@ Auctionator = {
 
 -- ===== Load in toc order =====
 local AP = {}
-for line in io.lines("AuctionatorMarketValue.toc") do
+for line in io.lines("SimpleMarketValue.toc") do
     -- Other addons' files, like TSM's AppData.lua, are absent here, as in a game without them
     if line:match("%.lua$") and not line:match("^#") and not line:match("^%.%.") then
         local path = line:gsub("\\", "/")
-        assert(loadfile(path))("AuctionatorMarketValue", AP)
+        assert(loadfile(path))("SimpleMarketValue", AP)
     end
 end
 check("files load in toc order", true)
@@ -363,17 +363,17 @@ end
 local function runAll(callbacks) return function() for _, fn in ipairs(callbacks or {}) do fn() end end end
 
 -- First load on the account: no saved table yet
-capture(runAll(addonLoaded.AuctionatorMarketValue))
-check("the first load marks the first run and prints nothing", AP.firstRun == true and #printed == 0 and type(AuctionatorMarketValueDB) == "table", #printed)
+capture(runAll(addonLoaded.SimpleMarketValue))
+check("the first load marks the first run and prints nothing", AP.firstRun == true and #printed == 0 and type(SimpleMarketValueDB) == "table", #printed)
 capture(runAll(loggedIn))
 local welcome = printed[1] or ""
 check("login prints exactly one welcome line", #printed == 1, #printed)
-check("the welcome line opens with the gold title", welcome:find("<gold>[Auctionator Market Value]</>: Shows how", 1, true) == 1, welcome)
-check("the welcome line links the settings and names /amv", welcome:find("Open the <gold>|Haddon:AuctionatorMarketValue|h[Settings]|h</> or type /amv to", 1, true) ~= nil, welcome)
+check("the welcome line opens with the gold title", welcome:find("<gold>[Simple Market Value]</>: Shows how", 1, true) == 1, welcome)
+check("the welcome line links the settings and names /smv", welcome:find("Open the <gold>|Haddon:SimpleMarketValue|h[Settings]|h</> or type /smv to", 1, true) ~= nil, welcome)
 
 local onItemRef = itemRefHandlers[AP]
-onItemRef("addon:AuctionatorMarketValue", "[Settings]", "LeftButton")
-check("a click on the link opens the settings", #opened == 1 and opened[1] == "Auctionator Market Value", #opened)
+onItemRef("addon:SimpleMarketValue", "[Settings]", "LeftButton")
+check("a click on the link opens the settings", #opened == 1 and opened[1] == "Simple Market Value", #opened)
 onItemRef("addon:OtherAddon", "[Other]", "LeftButton")
 onItemRef(SECRET, "[Settings]", "LeftButton")
 check("another addon's link or a secret one opens nothing", #opened == 1, #opened)
@@ -381,14 +381,14 @@ check("another addon's link or a secret one opens nothing", #opened == 1, #opene
 -- A later login on the same account, in a fresh load of the addon's onboarding
 do
     local later = {}
-    addonLoaded.AuctionatorMarketValue = {}
-    AuctionatorMarketValueDB.seenTimes = { Forever = { old = os.time() - 15 * 86400, recent = os.time() - 86400 } }
+    addonLoaded.SimpleMarketValue = {}
+    SimpleMarketValueDB.seenTimes = { Forever = { old = os.time() - 15 * 86400, recent = os.time() - 86400 } }
     local loginCallbacks = #loggedIn
-    for _, path in ipairs({ "Modules/Init.lua", "Modules/Bridge.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("AuctionatorMarketValue", later) end
-    capture(runAll(addonLoaded.AuctionatorMarketValue))
+    for _, path in ipairs({ "Modules/Init.lua", "Modules/Bridge.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("SimpleMarketValue", later) end
+    capture(runAll(addonLoaded.SimpleMarketValue))
     capture(function() for index = loginCallbacks + 1, #loggedIn do loggedIn[index]() end end)
     check("a later login prints nothing", later.firstRun == false and #printed == 0, #printed)
-    local times = AuctionatorMarketValueDB.seenTimes.Forever
+    local times = SimpleMarketValueDB.seenTimes.Forever
     check("price times past the 14-day window are dropped at load", times.old == nil and times.recent ~= nil)
 end
 
@@ -405,7 +405,7 @@ local function at(frame, point)
     return anchor[1], anchor[2], anchor[3], anchor[4]
 end
 
-check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Auctionator Market Value", canvas.name)
+check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Simple Market Value", canvas.name)
 check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Compares every auction price") ~= nil)
 check("six sliders and one checkbox", #sliders == 6 and checkbox ~= nil, #sliders)
 check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold, Level Range, Weapon DPS Range, Stat Value Range, Stat Count Range", table.concat(labels, ", "))
@@ -454,7 +454,7 @@ AP.BagGlow.Repaint = repaint
 InCombatLockdown = function() return true end
 capture(AP.OpenSettings)
 InCombatLockdown = function() return false end
-check("an open in combat prints one gold-prefixed line", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Opens after combat.", printed[1])
+check("an open in combat prints one gold-prefixed line", #printed == 1 and printed[1] == "<gold>[Simple Market Value]</>: Opens after combat.", printed[1])
 
 -- ===== AH open =====
 check("Similar ensure", AP.SimilarItems.Ensure())
@@ -740,34 +740,34 @@ AuctionHouseFrame.shown = false
 check("outside the Auction House the seller's colours apply", AP.Trend.Mode() == AP.Trend.UP_GREEN)
 
 -- ===== Slash commands =====
-local slash = SlashCmdList.AUCTIONATORMARKETVALUE
+local slash = SlashCmdList.SIMPLEMARKETVALUE
 local openedBefore = #opened
 capture(function() slash("") end)
-check("bare /amv opens the settings and prints nothing", #opened == openedBefore + 1 and #printed == 0)
-local helpLine = "<gold>[Auctionator Market Value]</>: Type /amv for the settings, /amv intro to see the welcome line and the tip again, or /amv help for this list."
+check("bare /smv opens the settings and prints nothing", #opened == openedBefore + 1 and #printed == 0)
+local helpLine = "<gold>[Simple Market Value]</>: Type /smv for the settings, /smv intro to see the welcome line and the tip again, or /smv help for this list."
 capture(function() slash(" HELP ") end)
-check("/amv help prints one line naming every command", #printed == 1 and printed[1] == helpLine, printed[1])
+check("/smv help prints one line naming every command", #printed == 1 and printed[1] == helpLine, printed[1])
 capture(function() slash("?") end)
-check("/amv ? prints the same line", #printed == 1 and printed[1] == helpLine, printed[1])
+check("/smv ? prints the same line", #printed == 1 and printed[1] == helpLine, printed[1])
 openedBefore = #opened
 capture(function() slash("frobnicate") end)
-check("an unknown word prints the hint and opens nothing", #printed == 1 and printed[1] == "<gold>[Auctionator Market Value]</>: Unknown command. Type /amv help for the list." and #opened == openedBefore, printed[1])
+check("an unknown word prints the hint and opens nothing", #printed == 1 and printed[1] == "<gold>[Simple Market Value]</>: Unknown command. Type /smv help for the list." and #opened == openedBefore, printed[1])
 capture(function() slash("intro") end)
-check("/amv intro prints the welcome line again", #printed == 1 and printed[1] == welcome, printed[1])
-check("/amv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
+check("/smv intro prints the welcome line again", #printed == 1 and printed[1] == welcome, printed[1])
+check("/smv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
 local inits = tip.inits
 fullScan:Show()
 check("an open tip is not set up again", tip.inits == inits)
 -- The tip was acknowledged once, by the Full Scan click; brought back, it must count as fresh
 fullScan:Hide()
-check("a tip brought back by /amv intro is not marked seen when Full Scan hides", AP.DB().tipSeen == nil and not tip.shown)
+check("a tip brought back by /smv intro is not marked seen when Full Scan hides", AP.DB().tipSeen == nil and not tip.shown)
 fullScan:Show()
 check("it shows again at Full Scan's next show", tip.shown and tip.info ~= nil)
 tip.CloseButton:Click()
 check("its close button retires it for good", AP.DB().tipSeen == true and not tip.shown)
 AP.DB().tipSeen = nil
 fullScan:Hide()
-check("Full Scan hidden: /amv intro waits for its next show", (function()
+check("Full Scan hidden: /smv intro waits for its next show", (function()
     capture(function() slash("intro") end)
     return not tip.shown
 end)())
