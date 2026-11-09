@@ -17,6 +17,7 @@ Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
 Modules\PriceHistory.lua
+Modules\Timing.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua
 Modules\SaleScan.lua

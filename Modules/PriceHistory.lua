@@ -39,13 +39,25 @@ local function interquartileMean(prices)
     return total / count
 end
 
+-- Spread of the daily prices on a log scale (sample standard deviation): how far this item's price normally swings
+-- from day to day, 0.1 for about 10%; nil below two days
+local function logSpread(prices)
+    if #prices < 2 then return nil end
+    local sum = 0
+    for _, price in ipairs(prices) do sum = sum + math.log(price) end
+    local mean = sum / #prices
+    local squares = 0
+    for _, price in ipairs(prices) do squares = squares + (math.log(price) - mean) ^ 2 end
+    return math.sqrt(squares / (#prices - 1))
+end
+
 -- Auctionator's day index (days since SCAN_DAY_0), as carried by each history row's rawDay
 local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without
--- usable history
+-- Average minimum buyout inside the history window for one price-database key, the days it rests on and their log
+-- spread; nil without usable history
 local function averageFor(dbKey)
     local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
     local recent = {}
@@ -57,7 +69,7 @@ local function averageFor(dbKey)
         end
     end
     if #recent == 0 then return nil end
-    return { math.floor(interquartileMean(recent) + 0.5), #recent }
+    return { math.floor(interquartileMean(recent) + 0.5), #recent, logSpread(recent) }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that
@@ -75,11 +87,12 @@ local function cachedAverage(dbKey)
 end
 
 -- First key with usable history, so a suffix or item-level key measures against its own market before the pooled
--- base item, matching Auctionator's price lookups, the days of history behind it and that key
+-- base item, matching Auctionator's price lookups, the days of history behind it, that key and the daily prices'
+-- log spread
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average[1] > 0 then return average[1], average[2], dbKey end
+        if average and average[1] > 0 then return average[1], average[2], dbKey, average[3] end
     end
     return nil
 end
@@ -205,30 +218,40 @@ local function addRow(tooltip, label, text)
     end
 end
 
--- After a blank line, the gold heading Market Value over one block per source that has figures: Auctionator, with
--- when it last saw a price, its 14-day average and the last price against it; then TSM, with when its app last
--- synced, the region sale average, sale rate and daily sales and the same last price against the sale average. Each
--- row shows only with its figure, and the lines of TSM and Auctionator themselves are left untouched
+-- After a blank line, the gold heading Market Value with the timing verdict on its right, over one block per source
+-- that has figures: Auctionator, with when it last saw a price, its 14-day average and the last price against it;
+-- then TSM, with when its app last synced, the region sale average, sale rate and daily sales, the player's auction
+-- house average, its trend and listings, and the same last price against the sale average. Each row shows only with
+-- its figure, and the lines of TSM and Auctionator themselves are left untouched
 local function addPriceRows(tooltip, itemLink)
     local average, days, dbKey = AP.Trend.AverageFor(itemLink)
     local saleAverage = AP.TSM.SaleAverage(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    if not (average or saleAverage or saleRate or dailySold) then return end
+    local house, listings = AP.TSM.HouseAverage(itemLink), AP.TSM.Listings(itemLink)
+    if not (average or saleAverage or saleRate or dailySold or house or listings) then return end
 
     local mode, lastPrice = AP.Trend.Mode(), AP.Bridge.AuctionPrice(itemLink)
+    local verdict, verdictColor = AP.Timing.Verdict(lastPrice, itemLink, mode)
     GameTooltip_AddBlankLineToTooltip(tooltip)
-    GameTooltip_AddNormalLine(tooltip, "Market Value")
+    if verdict then
+        GameTooltip_AddColoredDoubleLine(tooltip, "Market Value", verdict, NORMAL_FONT_COLOR, verdictColor, false)
+    else
+        GameTooltip_AddNormalLine(tooltip, "Market Value")
+    end
     if average then
         addHeading(tooltip, "Auctionator", auctionatorAge(dbKey))
         addRow(tooltip, "List Average", money(average))
         addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if saleAverage or saleRate or dailySold then
+    if saleAverage or saleRate or dailySold or house or listings then
         local synced = AP.TSM.SyncTime()
         addHeading(tooltip, "TSM", synced and ago(synced))
         addRow(tooltip, "Sale Average", money(saleAverage))
         addRow(tooltip, "Sale Rate", share(saleRate))
         addRow(tooltip, "Daily Sold", whole(dailySold))
+        addRow(tooltip, "AH Average", money(house))
+        addRow(tooltip, "AH Trend", AP.Trend.Colorize(AP.Trend.Percent(house, AP.TSM.HouseHistorical(itemLink)), mode))
+        addRow(tooltip, "AH Listings", whole(listings))
         addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
     end
 

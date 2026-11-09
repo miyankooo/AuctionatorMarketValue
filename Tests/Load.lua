@@ -260,6 +260,8 @@ local listeners = {}
 local historyBuilds = 0
 local historyDays = 3
 local historyAge = 0
+-- Daily minimums newest first, 100 each when unset
+local historyPrices
 
 local function provider()
     return {
@@ -311,7 +313,7 @@ Auctionator = {
             historyBuilds = historyBuilds + 1
             local today = math.floor(os.time() / 86400)
             local rows = {}
-            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = 100 } end
+            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = historyPrices and historyPrices[day + 1] or 100 } end
             return rows
         end,
     },
@@ -330,8 +332,11 @@ Auctionator = {
 
 -- ===== TradeSkillMaster =====
 -- TSM's price sources: the region sale average in copper, and the region sale rate and daily sales, asked for in
--- thousandths
-local tsmValues = { DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779, ["DBRegionSoldPerDay * 1000"] = 34890 }
+-- thousandths; the auction house's market value and long-run price in copper, and its listings
+local tsmValues = {
+    DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779, ["DBRegionSoldPerDay * 1000"] = 34890,
+    DBMarket = 130, DBHistorical = 125, DBNumAuctions = 12,
+}
 local function tsmLookup(source) return tsmValues[source] end
 TSM_API = {
     ToItemString = function() return "i:25" end,
@@ -484,10 +489,12 @@ local function tooltipText()
     return table.concat(tooltipLines, " | ")
 end
 local AUCTIONATOR_ROWS = "> List Average=100c | > Market Value=<green>+20%</>"
-local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | > Market Value=<red>-14%</>"
+local AH_ROWS = "> AH Average=130c | > AH Trend=<green>+4%</> | > AH Listings=12"
+local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | " .. AH_ROWS .. " | > Market Value=<red>-14%</>"
+-- 120 sits three 5% swings under 140 in a rising market, a dip to hold, grey on 3 days of prices
 local text = tooltipText()
-check("the tooltip heads Market Value over an Auctionator block, then a TSM block",
-    text == " | # Market Value | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
+check("the tooltip heads Market Value and its verdict over an Auctionator block, then a TSM block",
+    text == " | Market Value=<gray>Hold</> | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
 historyAge = 3
 text = tooltipText()
 check("Auctionator's age falls back to its whole scan days", text:find("Auctionator=<gray>3 days ago</>", 1, true) ~= nil, text)
@@ -507,10 +514,11 @@ text = tooltipText()
 check("thin history greys the Auctionator percentage", text:find("> Market Value=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
-check("without Auctionator history the TSM block stands alone", text == " | # Market Value | " .. TSM_BLOCK, text)
+check("without Auctionator history the TSM block stands alone", text == " | Market Value=<gray>Hold</> | " .. TSM_BLOCK, text)
 tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = nil, 400
 text = tooltipText()
-check("TSM shows whatever figures it has, daily sales rounded", text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0", text)
+check("TSM shows whatever figures it has, daily sales rounded, and no market value means no verdict",
+    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0 | " .. AH_ROWS, text)
 tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = 140, 34890
 historyDays = 3
 -- Launch day on a fresh realm: TSM with no data yet, or not ready and throwing
@@ -544,6 +552,50 @@ historyDays = 3
 text = tooltipText()
 check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 TSM_API = tsmApi
+
+-- ===== Timing verdict =====
+-- Eight days of steady prices (a swing at its 5% floor) against TSM's sale average 140, on an auction house trending
+-- up 4% (130 against 125) where 78% of auctions sell
+local function verdict(price, mode)
+    runNextFrame()
+    local label, color = AP.Timing.Verdict(price, "item:25", mode)
+    return label and color:WrapTextInColorCode(label)
+end
+local BUY, SELL = AP.Trend.UP_RED, AP.Trend.UP_GREEN
+historyDays = 8
+check("two swings under in a rising market is a strong buy", verdict(125, BUY) == "<green>Strong Buy</>", verdict(125, BUY))
+check("one swing under is a buy", verdict(132, BUY) == "<green>Buy</>", verdict(132, BUY))
+check("within a swing is fair", verdict(135, BUY) == "<white>Fair</>", verdict(135, BUY))
+check("one swing over is overpriced", verdict(150, BUY) == "<red>Overpriced</>", verdict(150, BUY))
+check("one swing over sells now", verdict(150, SELL) == "<green>Sell Now</>", verdict(150, SELL))
+check("a fair price on an item that mostly sells sells now", verdict(138, SELL) == "<green>Sell Now</>", verdict(138, SELL))
+check("a dip in a rising market is a hold", verdict(125, SELL) == "<red>Hold</>", verdict(125, SELL))
+tsmValues.DBMarket = 110
+check("in a falling market a deep cut is only a buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
+check("and a dip no reason to hold", verdict(125, SELL) == "<white>Fair</>", verdict(125, SELL))
+tsmValues.DBMarket = 130
+tsmValues["DBRegionSaleRate * 1000"] = 200
+check("an item that rarely sells is no strong buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
+check("nor a quick sale at a fair price", verdict(138, SELL) == "<white>Fair</>", verdict(138, SELL))
+tsmValues["DBRegionSaleRate * 1000"] = 779
+historyPrices = { 70, 130, 70, 130, 70, 130, 70, 130 }
+check("on a jumpy item the same cut is noise", verdict(125, BUY) == "<white>Fair</>", verdict(125, BUY))
+historyPrices = nil
+historyDays = 3
+check("thin history shows the verdict in grey", verdict(125, BUY) == "<gray>Strong Buy</>", verdict(125, BUY))
+historyDays = 8
+tsmValues["DBRegionSoldPerDay * 1000"] = 400
+check("so do slow sales", verdict(125, BUY) == "<gray>Strong Buy</>", verdict(125, BUY))
+tsmValues["DBRegionSoldPerDay * 1000"] = 34890
+local getItemInfo = C_Item.GetItemInfo
+C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
+check("below the vendor price is a strong buy, whatever the market", verdict(150, BUY) == "<green>Strong Buy</>", verdict(150, BUY))
+C_Item.GetItemInfo = getItemInfo
+TSM_API = nil
+check("without TSM the verdict measures against Auctionator's average", verdict(80, BUY) == "<green>Strong Buy</>" and verdict(100, SELL) == "<white>Fair</>", verdict(80, BUY))
+TSM_API = tsmApi
+check("no verdict without a price", verdict(nil, BUY) == nil)
+historyDays = 3
 
 -- ===== Memoised average =====
 runNextFrame()

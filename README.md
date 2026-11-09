@@ -6,7 +6,8 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 
 ## Features
 
-- Item tooltips show a Market Value section with a block per source. Auctionator: when it last saw a price, its List Average over 14 days and the last price's Market Value against it. TSM, with TradeSkillMaster: when its app last synced, the region Sale Average, Sale Rate and Daily Sold, and the same Market Value.
+- Item tooltips show a Market Value section with a block per source. Auctionator: when it last saw a price, its List Average over 14 days and the last price's Market Value against it. TSM, with TradeSkillMaster: when its app last synced, the region Sale Average, Sale Rate and Daily Sold, your auction house's AH Average, AH Trend and AH Listings, and the same Market Value.
+- A timing verdict beside the Market Value heading: Strong Buy, Buy, Fair or Overpriced while you shop, Sell Now, Fair or Hold while you sell. It weighs the price against how much the item's price usually swings, how well it sells and where your auction house is heading. It shows in gray while fewer than 7 days of prices back it.
 - A Relative column in Auctionator's Shopping and Selling tabs and in Blizzard's auction lists.
 - Deals glow green in Blizzard's buy lists.
 - Items worth selling glow green in Auctionator's Selling tab.
