@@ -6,9 +6,10 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 
 ## Features
 
-- Item tooltips show a Market Value section with a block per source. Auctionator: when it last saw a price, its List Average over 14 days and the last price's Market Value against it. TSM, with TradeSkillMaster: when its app last synced, the region Sale Average, Sale Rate and Daily Sold, your auction house's AH Average, AH Trend and AH Listings, and the same Market Value.
-- A timing verdict beside the Market Value heading: Strong Buy, Buy, Fair or Overpriced while you shop, Sell Now, Fair or Hold while you sell. It weighs the price against how much the item's price usually swings, how well it sells and where your auction house is heading. It shows in gray while fewer than 7 days of prices back it.
+- Item tooltips show a Market Value section with a block per source. Auctionator: when it last saw a price, its List Average over 14 days and the last price's Market Value against it. TSM, with TradeSkillMaster: when its app last synced, the region Sale Average, Sale Rate and Daily Sold, and the same Market Value.
+- A timing verdict beside the Market Value heading: Strong Buy or Buy in green, Fair in yellow or Overpriced in red while you shop, Sell Now in green, Fair in yellow or Hold in red while you sell. It weighs the price against how much the item's price usually swings, how well it sells and where your auction house is heading. Under 7 days of prices it assumes a wide swing, so it only makes clear calls.
 - A Relative column in Auctionator's Shopping and Selling tabs and in Blizzard's auction lists.
+- Every percentage is green for a good price, yellow for a fair one and red for a poor one, by your Deal Threshold while you shop and your Sell Threshold while you sell.
 - Deals glow green in Blizzard's buy lists.
 - Items worth selling glow green in Auctionator's Selling tab.
 - Sale Scan refreshes the prices of everything in your bags with one click.
@@ -19,4 +20,4 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 1. Open the Auction House and click Full Scan in Auctionator's Shopping tab, or Sale Scan in its Selling tab, so prices exist.
 2. Hover an item to see its market value. A gray percentage rests on fewer than 3 days of prices. With TradeSkillMaster and its desktop app, the TSM block appears on its own.
 3. Browse and shop as usual. Green rows are deals. Sort by Relative to find the cheapest listings.
-4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold and the Deal Threshold. `/smv help` lists the commands.
+4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold and the Deal Threshold, which decide both the colours and the glows. `/smv help` lists the commands.

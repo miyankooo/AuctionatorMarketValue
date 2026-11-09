@@ -2,7 +2,7 @@ local _, AP = ...
 
 -- TSM's figures for an item through TSM_API, as TSM v4.15.2 defines them on Forever: the region sale average, the
 -- market value the percentages measure against wherever TSM has one, the region sale rate and the region's daily
--- sales, the figures of the player's own auction house, plus when the TSM app last synced. TradeSkillMaster is optional; every figure is nil without it, for an item
+-- sales, the trend of the player's own auction house, plus when the TSM app last synced. TradeSkillMaster is optional; every figure is nil without it, for an item
 -- without TSM data, or while TSM is not ready yet.
 AP.TSM = {}
 
@@ -48,7 +48,8 @@ end
 
 -- ===== The player's auction house =====
 -- Forever has no named realms: TSM keys its local data by ruleset and faction, such as PvP-Alliance (LibTSMWoW
--- SessionInfo.lua), and the app fills it for stackables and gear alike, so these are the player's own auction house
+-- SessionInfo.lua), and the app fills it for stackables and gear alike, so these are the player's own auction house.
+-- The timing verdict reads its trend from them
 
 -- TSM's market value on the player's auction house, in copper
 function AP.TSM.HouseAverage(itemRef)
@@ -58,11 +59,6 @@ end
 -- TSM's long-run price on the player's auction house, in copper
 function AP.TSM.HouseHistorical(itemRef)
     return value("DBHistorical", itemRef)
-end
-
--- Auctions on the player's auction house at the app's last sync
-function AP.TSM.Listings(itemRef)
-    return value("DBNumAuctions", itemRef)
 end
 
 -- ===== Sync time =====

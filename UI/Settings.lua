@@ -7,18 +7,19 @@ local function minusPercent(value) return ("-%d%%"):format(value) end
 
 -- Sections in display order; a row is key, label, help, then the slider's min, max, step and value formatter
 local SECTIONS = {
-    { "Bag Glow", {
-        { "sellThresholdPct", "Sell Threshold", "Bag items glow green once their last price sits this far above their market value.", 5, 100, 1, plusPercent },
+    { "Selling", {
+        { "sellThresholdPct", "Sell Threshold", "While you sell, percentages this far above the market value turn green and bag items glow green. As far below turns them red.", 5, 100, 1, plusPercent },
     } },
-    { "Deals", {
-        { "dealThresholdPct", "Deal Threshold", "Rows in the Auction House buy lists glow green once their price sits this far below the market value.", 5, 100, 1, minusPercent },
+    { "Buying", {
+        { "dealThresholdPct", "Deal Threshold", "While you buy, percentages this far below the market value turn green and rows in the Auction House buy lists glow green. As far above turns them red.", 5, 100, 1, minusPercent },
     } },
 }
 
 -- What the addon does, where it works and what stays the game's own, before any row asks for a choice
 local INTRO = "Shows every auction price as a percentage of its market value: TSM's region sale average with "
-    .. "TradeSkillMaster installed, otherwise the 14-day average of Auctionator's scans. A gray percentage rests on "
-    .. "fewer than 3 days of prices.\n\n"
+    .. "TradeSkillMaster installed, otherwise the 14-day average of Auctionator's scans. Green marks a good "
+    .. "price, yellow a fair one and red a poor one, by the thresholds below. A gray percentage rests on fewer than 3 "
+    .. "days of prices.\n\n"
     .. "The percentages show in item tooltips, in Auctionator's Shopping and Selling tabs and in Blizzard's auction "
     .. "lists. Deals glow green in Blizzard's buy lists, and items worth selling in the Selling tab's bag list. Item "
     .. "tooltips also judge whether now is a good time to buy or sell."

@@ -335,7 +335,7 @@ Auctionator = {
 -- thousandths; the auction house's market value and long-run price in copper, and its listings
 local tsmValues = {
     DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779, ["DBRegionSoldPerDay * 1000"] = 34890,
-    DBMarket = 130, DBHistorical = 125, DBNumAuctions = 12,
+    DBMarket = 130, DBHistorical = 125,
 }
 local function tsmLookup(source) return tsmValues[source] end
 TSM_API = {
@@ -439,7 +439,7 @@ check("the page is its own canvas named after the toc Title", canvas.frame ~= ni
 check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Shows every auction price as a percentage of its market value") ~= nil)
 check("two sliders and no checkbox", #sliders == 2 and templated.SettingsCheckboxTemplate == nil, #sliders)
 check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold", table.concat(labels, ", "))
-check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Bag Glow, Deals", table.concat(headers, ", "))
+check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Selling, Buying", table.concat(headers, ", "))
 local header = templated.GameFontHighlightLarge[1]
 local headerX, headerY = at(header, "TOPLEFT")
 check("a header is a 45 px slot with its title at 7, -16", header.owner.height == 45 and headerX == 7 and headerY == -16)
@@ -489,12 +489,11 @@ local function tooltipText()
     return table.concat(tooltipLines, " | ")
 end
 local AUCTIONATOR_ROWS = "> List Average=100c | > Market Value=<green>+20%</>"
-local AH_ROWS = "> AH Average=130c | > AH Trend=<green>+4%</> | > AH Listings=12"
-local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | " .. AH_ROWS .. " | > Market Value=<red>-14%</>"
--- 120 sits three 5% swings under 140 in a rising market, a dip to hold, grey on 3 days of prices
+local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | > Market Value=<yellow>-14%</>"
+-- 120 sits one swing under 140 in a rising market, a dip to hold; 3 days of prices assume the wide 15% swing
 local text = tooltipText()
 check("the tooltip heads Market Value and its verdict over an Auctionator block, then a TSM block",
-    text == " | Market Value=<gray>Hold</> | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
+    text == " | Market Value=<red>Hold</> | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
 historyAge = 3
 text = tooltipText()
 check("Auctionator's age falls back to its whole scan days", text:find("Auctionator=<gray>3 days ago</>", 1, true) ~= nil, text)
@@ -514,11 +513,11 @@ text = tooltipText()
 check("thin history greys the Auctionator percentage", text:find("> Market Value=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
-check("without Auctionator history the TSM block stands alone", text == " | Market Value=<gray>Hold</> | " .. TSM_BLOCK, text)
+check("without Auctionator history the TSM block stands alone", text == " | Market Value=<red>Hold</> | " .. TSM_BLOCK, text)
 tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = nil, 400
 text = tooltipText()
 check("TSM shows whatever figures it has, daily sales rounded, and no market value means no verdict",
-    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0 | " .. AH_ROWS, text)
+    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0", text)
 tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = 140, 34890
 historyDays = 3
 -- Launch day on a fresh realm: TSM with no data yet, or not ready and throwing
@@ -553,6 +552,22 @@ text = tooltipText()
 check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 TSM_API = tsmApi
 
+-- ===== Colour scale =====
+-- Green from the glow threshold on the good side (Deal Threshold 20 for a buyer, Sell Threshold 15 for a seller), red
+-- as far on the bad side, yellow in between, grey on thin history
+local function scale(pct, mode, days) return AP.Trend.Colorize(pct, mode, days) end
+local buyer, seller = AP.Trend.UP_RED, AP.Trend.UP_GREEN
+local buyerScale = table.concat({ scale(-20, buyer), scale(-19, buyer), scale(0, buyer), scale(19, buyer), scale(20, buyer) }, " ")
+check("a buyer's scale: green from the Deal Threshold under, red as far over, yellow between",
+    buyerScale == "<green>-20%</> <yellow>-19%</> <yellow>0%</> <yellow>+19%</> <red>+20%</>", buyerScale)
+local sellerScale = table.concat({ scale(15, seller), scale(14, seller), scale(-14, seller), scale(-15, seller) }, " ")
+check("a seller's scale: green from the Sell Threshold over, red as far under, yellow between",
+    sellerScale == "<green>+15%</> <yellow>+14%</> <yellow>-14%</> <red>-15%</>", sellerScale)
+check("thin history stays grey", scale(-50, buyer, 2) == "<gray>-50%</>", scale(-50, buyer, 2))
+AP.DB().dealThresholdPct = 5
+check("the scale follows the threshold setting", scale(-7, buyer) == "<green>-7%</>" and scale(7, buyer) == "<red>+7%</>", scale(-7, buyer))
+AP.DB().dealThresholdPct = 20
+
 -- ===== Timing verdict =====
 -- Eight days of steady prices (a swing at its 5% floor) against TSM's sale average 140, on an auction house trending
 -- up 4% (130 against 125) where 78% of auctions sell
@@ -565,34 +580,31 @@ local BUY, SELL = AP.Trend.UP_RED, AP.Trend.UP_GREEN
 historyDays = 8
 check("two swings under in a rising market is a strong buy", verdict(125, BUY) == "<green>Strong Buy</>", verdict(125, BUY))
 check("one swing under is a buy", verdict(132, BUY) == "<green>Buy</>", verdict(132, BUY))
-check("within a swing is fair", verdict(135, BUY) == "<white>Fair</>", verdict(135, BUY))
+check("within a swing is fair", verdict(135, BUY) == "<yellow>Fair</>", verdict(135, BUY))
 check("one swing over is overpriced", verdict(150, BUY) == "<red>Overpriced</>", verdict(150, BUY))
 check("one swing over sells now", verdict(150, SELL) == "<green>Sell Now</>", verdict(150, SELL))
 check("a fair price on an item that mostly sells sells now", verdict(138, SELL) == "<green>Sell Now</>", verdict(138, SELL))
 check("a dip in a rising market is a hold", verdict(125, SELL) == "<red>Hold</>", verdict(125, SELL))
 tsmValues.DBMarket = 110
 check("in a falling market a deep cut is only a buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
-check("and a dip no reason to hold", verdict(125, SELL) == "<white>Fair</>", verdict(125, SELL))
+check("and a dip no reason to hold", verdict(125, SELL) == "<yellow>Fair</>", verdict(125, SELL))
 tsmValues.DBMarket = 130
 tsmValues["DBRegionSaleRate * 1000"] = 200
 check("an item that rarely sells is no strong buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
-check("nor a quick sale at a fair price", verdict(138, SELL) == "<white>Fair</>", verdict(138, SELL))
+check("nor a quick sale at a fair price", verdict(138, SELL) == "<yellow>Fair</>", verdict(138, SELL))
 tsmValues["DBRegionSaleRate * 1000"] = 779
 historyPrices = { 70, 130, 70, 130, 70, 130, 70, 130 }
-check("on a jumpy item the same cut is noise", verdict(125, BUY) == "<white>Fair</>", verdict(125, BUY))
+check("on a jumpy item the same cut is noise", verdict(125, BUY) == "<yellow>Fair</>", verdict(125, BUY))
 historyPrices = nil
 historyDays = 3
-check("thin history shows the verdict in grey", verdict(125, BUY) == "<gray>Strong Buy</>", verdict(125, BUY))
+check("thin history assumes a wide swing, so the same cut is only fair, still in colour", verdict(125, BUY) == "<yellow>Fair</>", verdict(125, BUY))
 historyDays = 8
-tsmValues["DBRegionSoldPerDay * 1000"] = 400
-check("so do slow sales", verdict(125, BUY) == "<gray>Strong Buy</>", verdict(125, BUY))
-tsmValues["DBRegionSoldPerDay * 1000"] = 34890
 local getItemInfo = C_Item.GetItemInfo
 C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
 check("below the vendor price is a strong buy, whatever the market", verdict(150, BUY) == "<green>Strong Buy</>", verdict(150, BUY))
 C_Item.GetItemInfo = getItemInfo
 TSM_API = nil
-check("without TSM the verdict measures against Auctionator's average", verdict(80, BUY) == "<green>Strong Buy</>" and verdict(100, SELL) == "<white>Fair</>", verdict(80, BUY))
+check("without TSM the verdict measures against Auctionator's average", verdict(80, BUY) == "<green>Strong Buy</>" and verdict(100, SELL) == "<yellow>Fair</>", verdict(80, BUY))
 TSM_API = tsmApi
 check("no verdict without a price", verdict(nil, BUY) == nil)
 historyDays = 3
@@ -776,7 +788,7 @@ end
 
 check("one painter waits on Blizzard's auction house", #painters == 1, #painters)
 check("buy rows show TSM's percentage in the buyer's colours", cheap.fontString and cheap.fontString.text == "<green>-50%</>", cheap.fontString and cheap.fontString.text)
-check("a row nearer the market value shows its smaller cut", dear.fontString.text == "<green>-7%</>", dear.fontString.text)
+check("a row nearer the market value shows its smaller cut", dear.fontString.text == "<yellow>-7%</>", dear.fontString.text)
 check("a row without a buyout shows nothing", thin.fontString.text == "")
 local to, toPoint, x = anchor(cheap.fontString, "RIGHT")
 check("the item buy column ends the quantity column", to == cheap.cells[3] and toPoint == "RIGHT" and x == -4, tostring(toPoint) .. " " .. tostring(x))
@@ -801,13 +813,13 @@ do
     cheap.rowData, dear.rowData = cheapData, dearData
     runNextFrame()
     update()
-    check("with TSM back the rows return to TSM's percentage", cheap.fontString.text == "<green>-50%</>" and dear.fontString.text == "<green>-7%</>", cheap.fontString.text .. " " .. dear.fontString.text)
+    check("with TSM back the rows return to TSM's percentage", cheap.fontString.text == "<green>-50%</>" and dear.fontString.text == "<yellow>-7%</>", cheap.fontString.text .. " " .. dear.fontString.text)
 end
 
 to, toPoint, x = anchor(commodity.fontString, "LEFT")
 check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-50%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
 to, toPoint, x = anchor(posted.fontString, "RIGHT")
-check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<red>-7%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
+check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<yellow>-7%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
 check("sell lists never glow", posted.texture == nil)
 
 -- Blizzard hands cells to other rows when it lays a list out again

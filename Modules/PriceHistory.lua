@@ -120,15 +120,21 @@ function AP.Trend.Percent(currentPrice, average)
     return math.floor((currentPrice - average) / average * 100 + 0.5)
 end
 
--- "+N%" / "-N%" / "0%" wrapped in the colour dictated by mode, grey when fewer than MIN_DAYS of history back it; nil pct yields nil so callers can skip an empty trend
+-- "+N%" / "-N%" / "0%" in the colour of its distance from the market value: green from the threshold the glows use on
+-- the good side of mode (the Sell Threshold for a seller, the Deal Threshold for a buyer), red as far on the bad side,
+-- yellow in between, so green figures match the glowing rows. Grey when fewer than MIN_DAYS of history back it; nil
+-- pct yields nil so callers can skip an empty trend
 function AP.Trend.Colorize(pct, mode, days)
     if type(pct) ~= "number" then return nil end
 
-    if days and days < AP.Trend.MIN_DAYS then return GRAY_FONT_COLOR:WrapTextInColorCode(string.format("%+d%%", pct)) end
-    if pct == 0 then return HIGHLIGHT_FONT_COLOR:WrapTextInColorCode("0%") end
-    local increaseGood = mode == AP.Trend.UP_GREEN
-    local color = ((pct > 0) == increaseGood) and GREEN_FONT_COLOR or RED_FONT_COLOR
-    return color:WrapTextInColorCode(string.format("%+d%%", pct))
+    local text = pct == 0 and "0%" or string.format("%+d%%", pct)
+    if days and days < AP.Trend.MIN_DAYS then return GRAY_FONT_COLOR:WrapTextInColorCode(text) end
+    local db = AP.DB()
+    local seller = mode == AP.Trend.UP_GREEN
+    local threshold = seller and db.sellThresholdPct or db.dealThresholdPct
+    local gain = seller and pct or -pct
+    local color = gain >= threshold and GREEN_FONT_COLOR or gain <= -threshold and RED_FONT_COLOR or YELLOW_FONT_COLOR
+    return color:WrapTextInColorCode(text)
 end
 
 -- A price against the item's market value, in the colours of mode: TSM's region sale average where TSM has one,
@@ -220,15 +226,14 @@ end
 
 -- After a blank line, the gold heading Market Value with the timing verdict on its right, over one block per source
 -- that has figures: Auctionator, with when it last saw a price, its 14-day average and the last price against it;
--- then TSM, with when its app last synced, the region sale average, sale rate and daily sales, the player's auction
--- house average, its trend and listings, and the same last price against the sale average. Each row shows only with
+-- then TSM, with when its app last synced, the region sale average, sale rate and daily sales, and the same last price
+-- against the sale average. Each row shows only with
 -- its figure, and the lines of TSM and Auctionator themselves are left untouched
 local function addPriceRows(tooltip, itemLink)
     local average, days, dbKey = AP.Trend.AverageFor(itemLink)
     local saleAverage = AP.TSM.SaleAverage(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    local house, listings = AP.TSM.HouseAverage(itemLink), AP.TSM.Listings(itemLink)
-    if not (average or saleAverage or saleRate or dailySold or house or listings) then return end
+    if not (average or saleAverage or saleRate or dailySold) then return end
 
     local mode, lastPrice = AP.Trend.Mode(), AP.Bridge.AuctionPrice(itemLink)
     local verdict, verdictColor = AP.Timing.Verdict(lastPrice, itemLink, mode)
@@ -243,15 +248,12 @@ local function addPriceRows(tooltip, itemLink)
         addRow(tooltip, "List Average", money(average))
         addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if saleAverage or saleRate or dailySold or house or listings then
+    if saleAverage or saleRate or dailySold then
         local synced = AP.TSM.SyncTime()
         addHeading(tooltip, "TSM", synced and ago(synced))
         addRow(tooltip, "Sale Average", money(saleAverage))
         addRow(tooltip, "Sale Rate", share(saleRate))
         addRow(tooltip, "Daily Sold", whole(dailySold))
-        addRow(tooltip, "AH Average", money(house))
-        addRow(tooltip, "AH Trend", AP.Trend.Colorize(AP.Trend.Percent(house, AP.TSM.HouseHistorical(itemLink)), mode))
-        addRow(tooltip, "AH Listings", whole(listings))
         addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
     end
 
