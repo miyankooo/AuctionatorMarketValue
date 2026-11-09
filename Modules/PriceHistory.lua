@@ -75,11 +75,11 @@ local function cachedAverage(dbKey)
     return frameAverages[dbKey] or nil
 end
 
--- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it and the days since its newest price
+-- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it, the days since its newest price and that price's time when the addon saw it
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average[1] > 0 then return average[1], average[2], average[3] end
+        if average and average[1] > 0 then return average[1], average[2], average[3], AP.Bridge.SeenTime(dbKey) end
     end
     return nil
 end
@@ -159,8 +159,18 @@ local function count(amount, unit)
     return ("%d %s%s ago"):format(amount, unit, amount == 1 and "" or "s")
 end
 
--- " (seen 7 days ago)": when Auctionator last saw a price, in whole scan days
-local function seenText(daysAgo)
+-- "3 hours ago" for a time(): minutes within the hour, hours within two days, days after that
+local function ago(when)
+    local minutes = math.max(0, math.floor((time() - when) / 60))
+    return (minutes < 60 and count(math.max(1, minutes), "minute"))
+        or (minutes < 48 * 60 and count(math.floor(minutes / 60), "hour"))
+        or count(math.floor(minutes / 1440), "day")
+end
+
+-- " (seen 12 minutes ago)": when Auctionator last got a price, to the minute once the addon saw it get one, otherwise
+-- in Auctionator's whole scan days
+local function seenText(daysAgo, seenTime)
+    if type(seenTime) == "number" then return (" (seen %s)"):format(ago(seenTime)) end
     if not daysAgo then return "" end
     return (" (seen %s)"):format(daysAgo == 0 and "today" or count(daysAgo, "day"))
 end
@@ -168,25 +178,21 @@ end
 -- " (updated 3 hours ago)": the age of the TSM app's download, which refreshes about hourly
 local function updatedText(updateTime)
     if type(updateTime) ~= "number" then return "" end
-    local minutes = math.max(0, math.floor((time() - updateTime) / 60))
-    local age = (minutes < 60 and count(math.max(1, minutes), "minute"))
-        or (minutes < 48 * 60 and count(math.floor(minutes / 60), "hour"))
-        or count(math.floor(minutes / 1440), "day")
-    return (" (updated %s)"):format(age)
+    return (" (updated %s)"):format(ago(updateTime))
 end
 
 -- An Auctionator block with the average and the last known price against it, then a TSM block with TSM's market value
 -- and the same comparison when TSM has one; nothing without either, and Auctionator's own lines are left untouched.
 -- Each value's label carries the age of its newest data
 local function addPriceRows(tooltip, itemLink)
-    local average, days, daysAgo = AP.Trend.AverageFor(itemLink)
+    local average, days, daysAgo, seenTime = AP.Trend.AverageFor(itemLink)
     local tsmMarket, tsmUpdated = AP.TSM.MarketValueFor(itemLink)
     if not (average or tsmMarket) then return end
 
     local auction = AP.Bridge.AuctionPrice(itemLink)
     if average then
         addBlock(tooltip, "Auctionator")
-        addRow(tooltip, "14-day average" .. seenText(daysAgo), AP.Bridge.Money(average))
+        addRow(tooltip, "14-day average" .. seenText(daysAgo, seenTime), AP.Bridge.Money(average))
         addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), AP.Trend.Mode(), days))
     end
     if tsmMarket then

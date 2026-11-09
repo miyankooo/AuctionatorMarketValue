@@ -6,7 +6,7 @@ A WoW Forever addon that shows how every auction price compares to its market va
 
 ## Features
 
-- Tooltips show an item's 14-day average, how many days ago its price was last seen, and how its last price compares.
+- Tooltips show an item's 14-day average, when its price was last seen, and how its last price compares.
 - TradeSkillMaster support: tooltips also show TSM's market value, how old that data is, and how the last price compares to it, from the TSM addon or, with the addon off, from the TSM desktop app's data.
 - Auction lists show each price as a percentage of the average, and deals glow green.
 - A Relative column in Auctionator's Shopping and Selling tabs and in Blizzard's auction lists.

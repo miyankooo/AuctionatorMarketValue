@@ -299,7 +299,9 @@ Auctionator = {
         DBKeyFromBrowseResult = function() return { "25" } end,
         ItemKeyString = function(key) return tostring(key.itemID) end,
     },
+    DatabaseMixin = { SetPrice = function() end },
     Database = {
+        SetPrice = function() end,
         GetFirstPrice = function() return 120 end,
         GetPriceHistory = function()
             historyBuilds = historyBuilds + 1
@@ -311,6 +313,7 @@ Auctionator = {
     },
     Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3" } },
     State = {
+        CurrentRealm = "Forever",
         IncrementalScanFrameRef = { InitiateScan = function() scansStarted.incremental = scansStarted.incremental + 1 end },
         FullScanFrameRef = { InitiateScan = function() scansStarted.replicate = scansStarted.replicate + 1 end },
     },
@@ -379,11 +382,14 @@ check("another addon's link or a secret one opens nothing", #opened == 1, #opene
 do
     local later = {}
     addonLoaded.AuctionatorMarketValue = {}
+    AuctionatorMarketValueDB.seenTimes = { Forever = { old = os.time() - 15 * 86400, recent = os.time() - 86400 } }
     local loginCallbacks = #loggedIn
-    for _, path in ipairs({ "Modules/Init.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("AuctionatorMarketValue", later) end
+    for _, path in ipairs({ "Modules/Init.lua", "Modules/Bridge.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("AuctionatorMarketValue", later) end
     capture(runAll(addonLoaded.AuctionatorMarketValue))
     capture(function() for index = loginCallbacks + 1, #loggedIn do loggedIn[index]() end end)
     check("a later login prints nothing", later.firstRun == false and #printed == 0, #printed)
+    local times = AuctionatorMarketValueDB.seenTimes.Forever
+    check("price times past the 14-day window are dropped at load", times.old == nil and times.recent ~= nil)
 end
 
 -- ===== Settings =====
@@ -474,9 +480,18 @@ tooltipLines = {}
 tooltipPostCall(GameTooltip)
 check("one day ago reads singular", tooltipLines[3] == "14-day average (seen 1 day ago)=100c", table.concat(tooltipLines, " | "))
 historyAge = 0
-tooltipLines = {}
+Auctionator.Database:SetPrice("25", 100)
 runNextFrame()
+tooltipLines = {}
 tooltipPostCall(GameTooltip)
+check("a price the addon saw recorded shows its age to the minute", tooltipLines[3] == "14-day average (seen 1 minute ago)=100c", table.concat(tooltipLines, " | "))
+time = function() return os.time() - 5 * 3600 end
+Auctionator.Database:SetPrice("25", 100)
+time = os.time
+runNextFrame()
+tooltipLines = {}
+tooltipPostCall(GameTooltip)
+check("older price times show in hours", tooltipLines[3] == "14-day average (seen 5 hours ago)=100c", table.concat(tooltipLines, " | "))
 
 -- ===== TSM rows =====
 check("no TSM block without TSM", #tooltipLines == 4, #tooltipLines)
