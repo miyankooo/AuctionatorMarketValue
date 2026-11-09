@@ -1,7 +1,7 @@
--- Offline smoke test: loads every file in toc order against stubs of the WoW API, Auctionator and TradeSkillMaster,
+-- Offline smoke test: loads every file in toc order against stubs of the WoW API, Auctionator and the TSM app's data,
 -- logs in and opens the Auction House once, and checks the welcome line, the settings page, the tooltip rows, the
 -- Full Scan button and its help tip, Sale Scan, the relative columns in Auctionator's and Blizzard's auction lists,
--- the market value with and without TSM, and the slash commands.
+-- the TSM app data reader, the market value with and without TSM, and the slash commands.
 -- Run from the addon folder: lua Tests/Load.lua
 
 local failures = 0
@@ -330,27 +330,61 @@ Auctionator = {
     FullScan = { Events = { ScanStart = "replicate_scan_start", ScanProgress = "replicate_scan_progress", ScanComplete = "replicate_scan_complete", ScanFailed = "replicate_scan_failed" } },
 }
 
--- ===== TradeSkillMaster =====
--- TSM's price sources: the region sale average in copper, and the region sale rate and daily sales, asked for in
--- thousandths; the auction house's market value and long-run price in copper, and its listings
-local tsmValues = {
-    DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779, ["DBRegionSoldPerDay * 1000"] = 34890,
-    DBMarket = 130, DBHistorical = 125,
-}
-local function tsmLookup(source) return tsmValues[source] end
-TSM_API = {
-    ToItemString = function() return "i:25" end,
-    GetCustomPriceValue = tsmLookup,
-}
-
--- TSM's global that TradeSkillMaster_AppHelper hands the app's data to, block by block
-local appBlocks = {}
-function TSM_APPHELPER_LOAD_DATA(tag) appBlocks[#appBlocks + 1] = tag end
+-- ===== TSM desktop app data =====
+-- The app's AppData.lua as the app writes it: one LoadData call per block, every value packed in base 32. Item 25
+-- carries the region sale average 140 copper, a sale rate of 0.779 and 34.89 sold a day (both in thousandths), and the
+-- auction house's market value 130 and long-run price 125. Another region's and another faction's blocks, an empty
+-- commodity block and a block of unread fields ride along and must be ignored
+function GetCurrentRegionName() return "EU" end
+local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, marketValue = 130, historical = 125 }
+local DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
+local function base32(n)
+    local text = ""
+    repeat
+        local digit = math.floor(n % 32)
+        text = DIGITS:sub(digit + 1, digit + 1) .. text
+        n = math.floor(n / 32)
+    until n == 0
+    return text
+end
+-- Values of 2^30 and more are written as two halves, the lower one padded to 6 digits
+local function packed(n)
+    if n < 2 ^ 30 then return base32(n) end
+    local low = base32(n % 2 ^ 30)
+    return base32(math.floor(n / 2 ^ 30)) .. ("0"):rep(6 - #low) .. low
+end
+local BIG = 2 ^ 30 + 5
+local function appData(values)
+    local function block(tag, key, fields, rows)
+        return ('select(2, ...).LoadData("%s","%s",[[return {downloadTime=1794182799,fields={"itemString","%s"},data={%s}}]])')
+            :format(tag, key, table.concat(fields, '","'), rows)
+    end
+    local function row(fields)
+        local cells = {}
+        for index, field in ipairs(fields) do cells[index] = packed(values[field] or 0) end
+        return "{25," .. table.concat(cells, ",") .. "}"
+    end
+    local SALE = { "regionSale", "regionSoldPerDay", "regionSalePercent" }
+    return table.concat({
+        block("AUCTIONDB_COMMODITY_HISTORICAL", "Forever-EU", { "historical" }, ""),
+        block("AUCTIONDB_REGION_SALE", "Forever-US", SALE, "{25,1,1,1}"),
+        block("AUCTIONDB_REGION_SALE", "Forever-EU", SALE, "{24,5,5,5}," .. row(SALE) .. ',{"i:259891::i1",' .. packed(BIG) .. ",0,0}"),
+        ('select(2, ...).LoadData("APP_INFO","Global",[[return {version="1.0.9",lastSync=%d,message={id=0,msg=""},news={}}]])')
+            :format(os.time() - 15 * 60),
+        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Horde", { "historical" }, "{25,1}"),
+        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Alliance", { "historical" }, row({ "historical" })),
+        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, row({ "marketValue" })),
+        block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", { "minBuyout", "numAuctions", "marketValueRecent" }, "{25,1,1,1}"),
+    }, "\n")
+end
 
 -- ===== Load in toc order =====
 local function loadAddon(ns)
     for line in io.lines("SimpleMarketValue.toc") do
-        if line:match("%.lua$") and not line:match("^#") then
+        if line == "..\\TradeSkillMaster_AppHelper\\AppData.lua" then
+            -- The app's file in the AppHelper folder, run with this addon's name and table as the client does
+            assert(load(appData(tsmValues)))("SimpleMarketValue", ns)
+        elseif line:match("%.lua$") and not line:match("^#") then
             local path = line:gsub("\\", "/")
             assert(loadfile(path))("SimpleMarketValue", ns)
         end
@@ -360,11 +394,32 @@ local AP = {}
 loadAddon(AP)
 check("files load in toc order", true)
 
--- AppHelper loads after the addon and hands over the app's info, synced a quarter of an hour ago
-TSM_APPHELPER_LOAD_DATA("AUCTIONDB_REGION_SALE", "Forever-EU", "return {downloadTime=1,fields={},data={}}")
-TSM_APPHELPER_LOAD_DATA("APP_INFO", "Global", ("return {version=\"1.0.9\",lastSync=%d,message={id=0,msg=\"\"},news={}}"):format(os.time() - 15 * 60))
-check("TSM still gets every block", #appBlocks == 2, #appBlocks)
+-- Reloads the TSM module over the app's data as it would read after a /reload; nil means the app never synced
+local function setAppData(values)
+    assert(loadfile("Modules/TSM.lua"))("SimpleMarketValue", AP)
+    if values then assert(load(appData(values)))("SimpleMarketValue", AP) end
+end
+
+-- ===== TSM app data =====
 check("the app's last sync is read from its info block", AP.TSM.SyncTime() == os.time() - 15 * 60, AP.TSM.SyncTime())
+check("this region's sale block is read, rate and daily sales in thousandths",
+    AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
+    tostring(AP.TSM.SaleAverage("item:25")) .. " " .. tostring(AP.TSM.SaleRate("item:25")))
+check("this ruleset and faction's house blocks are read, not another faction's",
+    AP.TSM.HouseAverage("item:25") == 130 and AP.TSM.HouseHistorical("item:25") == 125, AP.TSM.HouseHistorical("item:25"))
+check("an auction item key finds the same row", AP.TSM.SaleAverage({ itemID = 25 }) == 140)
+check("a variant's row answers for its base item, a value of 2^30 or more joined from its halves",
+    AP.TSM.SaleAverage("item:259891:0:0") == BIG, AP.TSM.SaleAverage("item:259891:0:0"))
+check("a zero is no figure", AP.TSM.DailySold("item:259891") == nil)
+check("an item without a row has no figure", AP.TSM.SaleAverage("item:26") == nil)
+local gameRules = C_GameRules.IsGameRuleActive
+C_GameRules.IsGameRuleActive = function(rule) return rule == Enum.GameRule.HardcoreRuleset end
+setAppData(tsmValues)
+check("another ruleset reads none of these blocks", AP.TSM.SaleAverage("item:25") == nil and AP.TSM.HouseAverage("item:25") == nil)
+C_GameRules.IsGameRuleActive = gameRules
+setAppData(nil)
+check("without the app's data every figure is nil", AP.TSM.SyncTime() == nil and AP.TSM.SaleAverage("item:25") == nil)
+setAppData(tsmValues)
 
 -- The AH frames Auctionator creates on first open
 AuctionatorShoppingFrame = CreateFrame("Frame")
@@ -514,22 +569,22 @@ check("thin history greys the Auctionator percentage", text:find("> Market Value
 historyDays = 0
 text = tooltipText()
 check("without Auctionator history the TSM block stands alone", text == " | Market Value=<red>Hold</> | " .. TSM_BLOCK, text)
-tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = nil, 400
+tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
+setAppData(tsmValues)
 text = tooltipText()
 check("TSM shows whatever figures it has, daily sales rounded, and no market value means no verdict",
     text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0", text)
-tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = 140, 34890
+tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
 historyDays = 3
--- Launch day on a fresh realm: TSM with no data yet, or not ready and throwing
-for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
-    TSM_API.GetCustomPriceValue = lookup
-    text = tooltipText()
-    check("TSM without a figure leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
-end
+-- Launch day on a fresh realm: the TSM app has not synced yet
+setAppData(nil)
+text = tooltipText()
+check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
 check("no section without any figure", text == "", text)
-TSM_API.GetCustomPriceValue, historyDays = tsmLookup, 3
+setAppData(tsmValues)
+historyDays = 3
 
 -- ===== Market value =====
 -- A price of 70: -50% against TSM's 140, -30% against Auctionator's 100
@@ -540,8 +595,7 @@ local function relative(price)
 end
 local pct, trusted = relative(70)
 check("the market value is TSM's where TSM has one", pct == -50 and trusted, pct)
-local tsmApi = TSM_API
-TSM_API = nil
+setAppData(nil)
 pct, trusted = relative(70)
 check("without TSM it is Auctionator's 14-day average", pct == -30 and trusted, pct)
 historyDays = 2
@@ -550,7 +604,7 @@ check("thin Auctionator history moves no glow", pct == -30 and not trusted, pct)
 historyDays = 3
 text = tooltipText()
 check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
-TSM_API = tsmApi
+setAppData(tsmValues)
 
 -- ===== Colour scale =====
 -- Green from the glow threshold on the good side (Deal Threshold 20 for a buyer, Sell Threshold 15 for a seller), red
@@ -585,14 +639,16 @@ check("one swing over is overpriced", verdict(150, BUY) == "<red>Overpriced</>",
 check("one swing over sells now", verdict(150, SELL) == "<green>Sell Now</>", verdict(150, SELL))
 check("a fair price on an item that mostly sells sells now", verdict(138, SELL) == "<green>Sell Now</>", verdict(138, SELL))
 check("a dip in a rising market is a hold", verdict(125, SELL) == "<red>Hold</>", verdict(125, SELL))
-tsmValues.DBMarket = 110
+tsmValues.marketValue = 110
+setAppData(tsmValues)
 check("in a falling market a deep cut is only a buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
 check("and a dip no reason to hold", verdict(125, SELL) == "<yellow>Fair</>", verdict(125, SELL))
-tsmValues.DBMarket = 130
-tsmValues["DBRegionSaleRate * 1000"] = 200
+tsmValues.marketValue, tsmValues.regionSalePercent = 130, 200
+setAppData(tsmValues)
 check("an item that rarely sells is no strong buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
 check("nor a quick sale at a fair price", verdict(138, SELL) == "<yellow>Fair</>", verdict(138, SELL))
-tsmValues["DBRegionSaleRate * 1000"] = 779
+tsmValues.regionSalePercent = 779
+setAppData(tsmValues)
 historyPrices = { 70, 130, 70, 130, 70, 130, 70, 130 }
 check("on a jumpy item the same cut is noise", verdict(125, BUY) == "<yellow>Fair</>", verdict(125, BUY))
 historyPrices = nil
@@ -603,9 +659,9 @@ local getItemInfo = C_Item.GetItemInfo
 C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
 check("below the vendor price is a strong buy, whatever the market", verdict(150, BUY) == "<green>Strong Buy</>", verdict(150, BUY))
 C_Item.GetItemInfo = getItemInfo
-TSM_API = nil
+setAppData(nil)
 check("without TSM the verdict measures against Auctionator's average", verdict(80, BUY) == "<green>Strong Buy</>" and verdict(100, SELL) == "<yellow>Fair</>", verdict(80, BUY))
-TSM_API = tsmApi
+setAppData(tsmValues)
 check("no verdict without a price", verdict(nil, BUY) == nil)
 historyDays = 3
 
@@ -663,29 +719,31 @@ local entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
 runNextFrame()
 AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
 check("Auctionator's column shows TSM's percentage", entries[1].apTrendText == "<green>-50%</>" and entries[1].apTrendValue == -50, entries[1].apTrendText)
-tsmValues.DBRegionSaleAvg = nil
+tsmValues.regionSale = nil
+setAppData(tsmValues)
 entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
 runNextFrame()
 AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
 check("an item without a TSM figure shows Auctionator's", entries[1].apTrendText == "<green>-30%</>" and entries[1].apTrendValue == -30, entries[1].apTrendText)
-tsmValues.DBRegionSaleAvg = 140
--- Auctionator alone, then TSM installed but without data (its app never synced) or not ready and throwing
+tsmValues.regionSale = 140
+setAppData(tsmValues)
+-- Auctionator alone, then the TSM app's data without a sale average for the item
 local function shoppingColumn()
     entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
     runNextFrame()
     AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
     return entries[1].apTrendText, entries[1].apTrendValue
 end
-TSM_API = nil
+setAppData(nil)
 local columnText, columnValue = shoppingColumn()
 check("with Auctionator alone the column shows Auctionator's percentage", columnText == "<green>-30%</>" and columnValue == -30, columnText)
-TSM_API = tsmApi
-for _, lookup in ipairs({ function() return nil end, function() error("not ready") end }) do
-    TSM_API.GetCustomPriceValue = lookup
-    columnText, columnValue = shoppingColumn()
-    check("TSM without a sale average leaves the column on Auctionator's", columnText == "<green>-30%</>" and columnValue == -30, columnText)
-end
-TSM_API.GetCustomPriceValue = tsmLookup
+setAppData(tsmValues)
+tsmValues.regionSale = nil
+setAppData(tsmValues)
+columnText, columnValue = shoppingColumn()
+check("TSM without a sale average leaves the column on Auctionator's", columnText == "<green>-30%</>" and columnValue == -30, columnText)
+tsmValues.regionSale = 140
+setAppData(tsmValues)
 columnText, columnValue = shoppingColumn()
 check("with TSM set up the column is back on TSM's", columnText == "<green>-50%</>" and columnValue == -50, columnText)
 
@@ -709,10 +767,10 @@ bagButton.CreateTexture = function(self) self.texture = CreateFrame("Texture", n
 runNextFrame()
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
 check("TSM's market value comes first for the bag glow", bagButton.texture == nil)
-TSM_API = nil
+setAppData(nil)
 runNextFrame()
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
-TSM_API = tsmApi
+setAppData(tsmValues)
 local bagGlow = bagButton.texture
 check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow.atlas == "bags-glow-green")
 check("the glow is kept off Auctionator's button", rawget(bagButton, "addonGlow") == nil)
@@ -803,13 +861,13 @@ check("nothing is written to Blizzard's rows", rawget(cheap, "apRowData") == nil
 -- Auctionator alone: the same rows, handed fresh results, measure against Auctionator's 100
 do
     local cheapData, dearData = cheap.rowData, dear.rowData
-    TSM_API = nil
+    setAppData(nil)
     cheap.rowData, dear.rowData = { itemKey = { itemID = 25 }, buyoutAmount = 70 }, { itemKey = { itemID = 25 }, buyoutAmount = 130 }
     runNextFrame()
     update()
     check("with Auctionator alone Blizzard's buy rows show Auctionator's percentage", cheap.fontString.text == "<green>-30%</>" and dear.fontString.text == "<red>+30%</>", cheap.fontString.text .. " " .. dear.fontString.text)
     check("and a deal by Auctionator's percentage glows", cheap.texture.shown)
-    TSM_API = tsmApi
+    setAppData(tsmValues)
     cheap.rowData, dear.rowData = cheapData, dearData
     runNextFrame()
     update()

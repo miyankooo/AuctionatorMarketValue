@@ -1,6 +1,6 @@
 local _, AP = ...
 
--- The relative value: a price against the item's market value, TSM's region sale average where TradeSkillMaster has
+-- The relative value: a price against the item's market value, TSM's region sale average where the TSM app has
 -- one, otherwise the 14-day average of Auctionator's scans. Also the item tooltip rows
 AP.Trend = {}
 

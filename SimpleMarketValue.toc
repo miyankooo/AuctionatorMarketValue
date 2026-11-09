@@ -1,13 +1,12 @@
 ## Interface: 16001
 ## Title: Simple Market Value
-## Notes: Shows every auction price against its market value: Auctionator's 14-day average, or TSM's region sale average with TradeSkillMaster.
+## Notes: Shows every auction price against its market value: Auctionator's 14-day average, or TSM's region sale average from the TSM desktop app.
 ## Author: miyanko
 ## Version: @project-version@
 ## Category: Auctions
 ## IconTexture: Interface\Icons\ability_racial_timeismoney
 ## X-Curse-Project-ID: 1785941
 ## Dependencies: Auctionator
-## OptionalDeps: TradeSkillMaster
 ## SavedVariables: SimpleMarketValueDB
 ## AddonCompartmentFunc: SimpleMarketValue_CompartmentClick
 ## AddonCompartmentFuncOnEnter: SimpleMarketValue_CompartmentEnter
@@ -16,6 +15,8 @@
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
+# The TSM desktop app's data, read by Modules\TSM.lua whether the TradeSkillMaster addon is enabled or not
+..\TradeSkillMaster_AppHelper\AppData.lua
 Modules\PriceHistory.lua
 Modules\Timing.lua
 Modules\TrendColumn.lua

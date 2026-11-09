@@ -17,7 +17,7 @@ local SECTIONS = {
 
 -- What the addon does, where it works and what stays the game's own, before any row asks for a choice
 local INTRO = "Shows every auction price as a percentage of its market value: TSM's region sale average with "
-    .. "TradeSkillMaster installed, otherwise the 14-day average of Auctionator's scans. Green marks a good "
+    .. "the TSM desktop app, otherwise the 14-day average of Auctionator's scans. Green marks a good "
     .. "price, yellow a fair one and red a poor one, by the thresholds below. A gray percentage rests on fewer than 3 "
     .. "days of prices.\n\n"
     .. "The percentages show in item tooltips, in Auctionator's Shopping and Selling tabs and in Blizzard's auction "

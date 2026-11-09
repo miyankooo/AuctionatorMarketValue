@@ -1,83 +1,155 @@
 local _, AP = ...
 
--- TSM's figures for an item through TSM_API, as TSM v4.15.2 defines them on Forever: the region sale average, the
--- market value the percentages measure against wherever TSM has one, the region sale rate and the region's daily
--- sales, the trend of the player's own auction house, plus when the TSM app last synced. TradeSkillMaster is optional; every figure is nil without it, for an item
--- without TSM data, or while TSM is not ready yet.
+-- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
+-- disabled or load in any order: the region sale average (the market value the percentages measure against wherever
+-- it exists), the region sale rate and daily sales, the market value and long-run price of the player's own auction
+-- house, and when the app last synced. The toc loads the app's AppData.lua right after this file; it hands each block
+-- to AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil
+-- without the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.2 reads
+-- them (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
 AP.TSM = {}
 
--- TSM item string for a link, an item string or an auction item key. Keys pool suffixed gear into the base item, and
--- TSM itself falls back to the base item when a variant has no data
-local function itemStringFor(itemRef)
-    if type(itemRef) == "table" and itemRef.itemID then
-        return "i:" .. itemRef.itemID
-    end
-    if type(itemRef) == "string" and itemRef ~= "" then
-        local ok, itemString = pcall(TSM_API.ToItemString, itemRef)
-        return ok and itemString or nil
-    end
-    return nil
+-- ===== The player's blocks =====
+-- Forever has no named realms: TSM keys local data by ruleset and faction, such as PvP-Alliance, and region data as
+-- Forever-<region> or Forever-HC-<region> (LibTSMWoW SessionInfo.lua, LibTSMService AppHelper.lua)
+local function ownKeys()
+    local rule = C_GameRules.IsGameRuleActive
+    local hardcore = rule(Enum.GameRule.HardcoreRuleset)
+    local rp, pvp = rule(Enum.GameRule.RPRuleset), rule(Enum.GameRule.PvPRuleset)
+    local ruleset = (hardcore and "Hardcore") or (rp and pvp and "Roleplay PvP") or (rp and "Roleplay") or (pvp and "PvP") or "Normal"
+    return {
+        realm = (ruleset .. "-" .. (UnitFactionGroup("player") or "")):lower(),
+        region = ((hardcore and "Forever-HC-" or "Forever-") .. GetCurrentRegionName()):lower(),
+    }
 end
 
-local function value(source, itemRef)
-    if not TSM_API then return nil end
-    local itemString = itemStringFor(itemRef)
-    if not itemString then return nil end
-    local ok, amount = pcall(TSM_API.GetCustomPriceValue, source, itemString)
-    if ok and type(amount) == "number" and amount > 0 then return amount end
-    return nil
-end
+-- The blocks holding the fields read below; commodity blocks carry the house's figures for stackables per region,
+-- which TSM merges into the realm's data. On Forever they come empty, since stackables sit in the realm blocks
+local BLOCK_KEYS = {
+    AUCTIONDB_NON_COMMODITY_SCAN_STAT = "realm",
+    AUCTIONDB_NON_COMMODITY_HISTORICAL = "realm",
+    AUCTIONDB_COMMODITY_SCAN_STAT = "region",
+    AUCTIONDB_COMMODITY_HISTORICAL = "region",
+    AUCTIONDB_REGION_SALE = "region",
+}
 
--- What the item sold for across the region, in copper
-function AP.TSM.SaleAverage(itemRef)
-    return value("DBRegionSaleAvg", itemRef)
-end
-
--- The share of the item's auctions that sell across the region, from 0 to 1. TSM rounds every value to a whole number,
--- so it is asked for a thousand times the rate, as its own tooltip does (LibTSMApp Tooltip/Internal/AuctionDB.lua)
-function AP.TSM.SaleRate(itemRef)
-    local permille = value("DBRegionSaleRate * 1000", itemRef)
-    return permille and permille / 1000
-end
-
--- How many the region sells a day, asked for in thousandths as its own tooltip does
-function AP.TSM.DailySold(itemRef)
-    local permille = value("DBRegionSoldPerDay * 1000", itemRef)
-    return permille and permille / 1000
-end
-
--- ===== The player's auction house =====
--- Forever has no named realms: TSM keys its local data by ruleset and faction, such as PvP-Alliance (LibTSMWoW
--- SessionInfo.lua), and the app fills it for stackables and gear alike, so these are the player's own auction house.
--- The timing verdict reads its trend from them
-
--- TSM's market value on the player's auction house, in copper
-function AP.TSM.HouseAverage(itemRef)
-    return value("DBMarket", itemRef)
-end
-
--- TSM's long-run price on the player's auction house, in copper
-function AP.TSM.HouseHistorical(itemRef)
-    return value("DBHistorical", itemRef)
-end
-
--- ===== Sync time =====
--- TSM keeps the app's last sync private, so the addon reads it where TradeSkillMaster_AppHelper hands it over: AppHelper
--- passes each block of the app's data file to TSM's global TSM_APPHELPER_LOAD_DATA as it loads, and the APP_INFO block
--- carries lastSync (LibTSMService AppHelper.lua). The toc's OptionalDeps loads this file after TSM defines that global,
--- and the client's alphabetical load order before AppHelper; when AppHelper loads first, the age is simply unknown.
--- TSM's function, not Blizzard's, so no taint
+local keys
+local blocks = {}
 local lastSync
 
-if type(TSM_APPHELPER_LOAD_DATA) == "function" then
-    hooksecurefunc("TSM_APPHELPER_LOAD_DATA", function(tag, _, data)
-        if tag == "APP_INFO" and type(data) == "string" then
-            lastSync = tonumber(data:match("lastSync=(%d+)")) or lastSync
-        end
-    end)
+-- AppData.lua calls this once per block as select(2, ...).LoadData(tag, realmOrRegion, data). The player's blocks are
+-- kept as text and parsed at their first lookup, so login pays only for a few string matches
+function AP.LoadData(tag, realmOrRegion, data)
+    if type(tag) ~= "string" or type(realmOrRegion) ~= "string" or type(data) ~= "string" then return end
+    if tag == "APP_INFO" then
+        lastSync = tonumber(data:match("lastSync=(%d+)")) or lastSync
+        return
+    end
+    -- An error here would stop the rest of the file, so unknown keys only mean no blocks match
+    if not keys then
+        local ok, own = pcall(ownKeys)
+        keys = ok and own or {}
+    end
+    if realmOrRegion:lower() ~= keys[BLOCK_KEYS[tag]] then return end
+
+    -- The payload reads return {downloadTime=...,fields={"itemString",...},data={{item,value,...},...}}
+    local _, dataStart = data:find(",data={", 1, true)
+    local fieldList = dataStart and data:sub(1, dataStart):match("fields={(.-)}")
+    if not fieldList then return end
+    -- itemString is the first field and the key of each row, so the nth field is the row's (n - 1)th value
+    local fields, column = {}, 0
+    for field in fieldList:gmatch('"([^"]+)"') do
+        if column > 0 then fields[field] = column end
+        column = column + 1
+    end
+    blocks[#blocks + 1] = { fields = fields, body = data:sub(dataStart + 1, -3) }
 end
 
--- When the TSM app last synced its data, as time(); nil when unknown
+-- Rows by item string, "i:<itemID>" for a plain item. A variant such as i:259891::i1 also answers for its base item,
+-- since the addon looks items up by item ID and TSM falls back to the base item
+local function rowsOf(block)
+    if not block.rows then
+        local rows = {}
+        for item, values in block.body:gmatch('{"?([^,"]+)"?,([^}]+)}') do
+            local key = tonumber(item) and ("i:" .. item) or item
+            local base = key:match("^i:%d+")
+            if base and base ~= key and not rows[base] then rows[base] = values end
+            rows[key] = values
+        end
+        block.rows, block.body = rows, nil
+    end
+    return block.rows
+end
+
+-- TSM packs each value in base 32 and cuts values over 6 digits in two, since tonumber only holds 32 bits
+local function unpack32(packed)
+    if #packed > 6 then
+        local low, high = tonumber(packed:sub(-6), 32), tonumber(packed:sub(1, -7), 32)
+        return low and high and low + high * 2 ^ 30 or 0
+    end
+    return tonumber(packed, 32) or 0
+end
+
+-- A row's values, unpacked at its first lookup and kept unpacked, as TSM does
+local function valuesOf(rows, key)
+    local row = rows[key]
+    if type(row) == "string" then
+        local values = { strsplit(",", row) }
+        for index, packed in ipairs(values) do values[index] = unpack32(packed) end
+        rows[key] = values
+        row = values
+    end
+    return row
+end
+
+-- An item's field from the first block that has both; nil when missing or zero, as TSM's own lookup. Takes a link, an
+-- item string or an auction item key
+local function value(field, itemRef)
+    local itemID = type(itemRef) == "table" and itemRef.itemID
+        or type(itemRef) == "string" and (itemRef:match("item:(%d+)") or itemRef:match("^i:(%d+)"))
+    if not itemID then return nil end
+    local key = "i:" .. itemID
+    for _, block in ipairs(blocks) do
+        local column = block.fields[field]
+        local values = column and valuesOf(rowsOf(block), key)
+        if values then
+            local amount = values[column]
+            return amount and amount > 0 and amount or nil
+        end
+    end
+    return nil
+end
+
+-- ===== Figures =====
+-- What the item sold for across the region, in copper (DBRegionSaleAvg)
+function AP.TSM.SaleAverage(itemRef)
+    return value("regionSale", itemRef)
+end
+
+-- The share of the item's auctions that sell across the region, from 0 to 1; the app writes it in thousandths
+-- (DBRegionSaleRate)
+function AP.TSM.SaleRate(itemRef)
+    local permille = value("regionSalePercent", itemRef)
+    return permille and permille / 1000
+end
+
+-- How many the region sells a day, written in thousandths (DBRegionSoldPerDay)
+function AP.TSM.DailySold(itemRef)
+    local permille = value("regionSoldPerDay", itemRef)
+    return permille and permille / 1000
+end
+
+-- TSM's market value on the player's auction house, in copper (DBMarket)
+function AP.TSM.HouseAverage(itemRef)
+    return value("marketValue", itemRef)
+end
+
+-- TSM's long-run price on the player's auction house, in copper (DBHistorical)
+function AP.TSM.HouseHistorical(itemRef)
+    return value("historical", itemRef)
+end
+
+-- When the TSM app last synced its data, as time(); nil without the app's data
 function AP.TSM.SyncTime()
     return lastSync
 end
