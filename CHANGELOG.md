@@ -9,13 +9,11 @@
 
 ### Features
 
-* item tooltips show Auctionator and TSM in their own blocks under Market Value, each with the age of its data, and TSM's daily sales ([f029484](https://github.com/miyankooo/SimpleMarketValue/commit/f029484338d50f203479d9a1d43309ef303606b5))
-* item tooltips show one Relative Market Value section: Auctionator's 14-day average and the last price relative to it, then TSM's region sale average, its sale rate and the last price relative to that ([28929b2](https://github.com/miyankooo/SimpleMarketValue/commit/28929b2276eda1eabf666c38ce96082c26071958))
+* rename the addon to Simple Market Value ([5721153](https://github.com/miyankooo/SimpleMarketValue/commit/5721153ab0879a058c4bb4e6f683d300d195b264))
+* item tooltips show a Market Value section with an Auctionator block and a TSM block, each headed by the age of its data: Auctionator's List Average and Market Value, and TSM's Sale Average, Sale Rate, Daily Sold and Market Value ([f029484](https://github.com/miyankooo/SimpleMarketValue/commit/f029484338d50f203479d9a1d43309ef303606b5))
+* the Relative column, the deal glow and the bag glow measure against TSM's region sale average wherever TradeSkillMaster has one ([28929b2](https://github.com/miyankooo/SimpleMarketValue/commit/28929b2276eda1eabf666c38ce96082c26071958))
 * remove Similar Items from selling ([4eef8a4](https://github.com/miyankooo/SimpleMarketValue/commit/4eef8a4be8f80918256bbae8b829eefb0d0f1974))
 * remove the percentage beside the price in Blizzard's and Auctionator's sell windows ([28929b2](https://github.com/miyankooo/SimpleMarketValue/commit/28929b2276eda1eabf666c38ce96082c26071958))
-* rename the addon to Simple Market Value ([5721153](https://github.com/miyankooo/SimpleMarketValue/commit/5721153ab0879a058c4bb4e6f683d300d195b264))
-* the Relative column, the deal glow and the bag glow use TSM's region sale average when TSM is installed ([28929b2](https://github.com/miyankooo/SimpleMarketValue/commit/28929b2276eda1eabf666c38ce96082c26071958))
-* TSM's region sale average is the market value wherever TradeSkillMaster has one ([28929b2](https://github.com/miyankooo/SimpleMarketValue/commit/28929b2276eda1eabf666c38ce96082c26071958))
 
 ## 1.0.0 (2026-11-08)
 
