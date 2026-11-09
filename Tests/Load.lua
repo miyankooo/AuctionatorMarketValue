@@ -148,7 +148,9 @@ local function runNextFrame()
     for _, fn in ipairs(queued) do fn() end
 end
 
+-- Both forms: (table, "method", hook) and ("globalFunction", hook)
 function hooksecurefunc(target, method, hook)
+    if type(target) == "string" then target, method, hook = _G, target, method end
     local original = target[method]
     target[method] = function(...) local a, b, c = original(...) hook(...) return a, b, c end
 end
@@ -183,10 +185,14 @@ TooltipUtil = { GetDisplayedItem = function() return "Worn Sword", "item:25" end
 
 local tooltipLines = {}
 function GameTooltip_AddBlankLineToTooltip() tooltipLines[#tooltipLines + 1] = "" end
-function GameTooltip_AddColoredDoubleLine(_, left, right) tooltipLines[#tooltipLines + 1] = left .. "=" .. right end
+-- An indented row reads "> label=value", a sub-heading's grey age "label=<gray>age</>"
+function GameTooltip_AddColoredDoubleLine(_, left, right, _, rightColor, _, leftOffset)
+    if rightColor ~= HIGHLIGHT_FONT_COLOR then right = rightColor:WrapTextInColorCode(right) end
+    tooltipLines[#tooltipLines + 1] = (leftOffset and "> " or "") .. left .. "=" .. right
+end
 function GameTooltip_AddNormalLine(_, text) tooltipLines[#tooltipLines + 1] = "# " .. text end
 function GameTooltip_SetTitle() end
-function GameTooltip_AddHighlightLine() end
+function GameTooltip_AddHighlightLine(_, text) tooltipLines[#tooltipLines + 1] = text end
 function GameTooltip_AddErrorLine() end
 function GameTooltip_AddInstructionLine() end
 function GameTooltip_Hide() end
@@ -300,6 +306,7 @@ Auctionator = {
     Database = {
         SetPrice = function() end,
         GetFirstPrice = function() return 120 end,
+        GetPriceAge = function() return historyDays > 0 and historyAge or nil end,
         GetPriceHistory = function()
             historyBuilds = historyBuilds + 1
             local today = math.floor(os.time() / 86400)
@@ -322,13 +329,18 @@ Auctionator = {
 }
 
 -- ===== TradeSkillMaster =====
--- TSM's price sources: the region sale average in copper and the region sale rate, asked for in thousandths
-local tsmValues = { DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779 }
+-- TSM's price sources: the region sale average in copper, and the region sale rate and daily sales, asked for in
+-- thousandths
+local tsmValues = { DBRegionSaleAvg = 140, ["DBRegionSaleRate * 1000"] = 779, ["DBRegionSoldPerDay * 1000"] = 34890 }
 local function tsmLookup(source) return tsmValues[source] end
 TSM_API = {
     ToItemString = function() return "i:25" end,
     GetCustomPriceValue = tsmLookup,
 }
+
+-- TSM's global that TradeSkillMaster_AppHelper hands the app's data to, block by block
+local appBlocks = {}
+function TSM_APPHELPER_LOAD_DATA(tag) appBlocks[#appBlocks + 1] = tag end
 
 -- ===== Load in toc order =====
 local function loadAddon(ns)
@@ -342,6 +354,12 @@ end
 local AP = {}
 loadAddon(AP)
 check("files load in toc order", true)
+
+-- AppHelper loads after the addon and hands over the app's info, synced a quarter of an hour ago
+TSM_APPHELPER_LOAD_DATA("AUCTIONDB_REGION_SALE", "Forever-EU", "return {downloadTime=1,fields={},data={}}")
+TSM_APPHELPER_LOAD_DATA("APP_INFO", "Global", ("return {version=\"1.0.9\",lastSync=%d,message={id=0,msg=\"\"},news={}}"):format(os.time() - 15 * 60))
+check("TSM still gets every block", #appBlocks == 2, #appBlocks)
+check("the app's last sync is read from its info block", AP.TSM.SyncTime() == os.time() - 15 * 60, AP.TSM.SyncTime())
 
 -- The AH frames Auctionator creates on first open
 AuctionatorShoppingFrame = CreateFrame("Frame")
@@ -390,11 +408,14 @@ check("another addon's link or a secret one opens nothing", #opened == 1, #opene
 do
     local later = {}
     addonLoaded.SimpleMarketValue = {}
+    SimpleMarketValueDB.seenTimes = { Forever = { old = os.time() - 15 * 86400, recent = os.time() - 86400 } }
     local loginCallbacks = #loggedIn
     for _, path in ipairs({ "Modules/Init.lua", "Modules/Bridge.lua", "UI/Welcome.lua" }) do assert(loadfile(path))("SimpleMarketValue", later) end
     capture(runAll(addonLoaded.SimpleMarketValue))
     capture(function() for index = loginCallbacks + 1, #loggedIn do loggedIn[index]() end end)
     check("a later login prints nothing", later.firstRun == false and #printed == 0, #printed)
+    local times = SimpleMarketValueDB.seenTimes.Forever
+    check("price times past the 14-day window are dropped at load", times.old == nil and times.recent ~= nil)
 end
 
 -- ===== Settings =====
@@ -455,31 +476,52 @@ check("Full Scan ensure", AP.FullScanButton.Ensure())
 
 -- ===== Tooltip rows =====
 -- Auctionator's last price 120 against its 14-day average 100, and against TSM's region sale average 140 at a sale
--- rate of 0.779; outside the Auction House in the seller's colours
+-- rate of 0.779 and 34.89 sold a day; outside the Auction House in the seller's colours
 local function tooltipText()
     tooltipLines = {}
     runNextFrame()
     tooltipPostCall(GameTooltip)
     return table.concat(tooltipLines, " | ")
 end
+local AUCTIONATOR_ROWS = "> List Average=100c | > Market Value=<green>+20%</>"
+local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | > Market Value=<red>-14%</>"
 local text = tooltipText()
-check("the tooltip shows one Relative Market Value section, Auctionator first", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</> | TSM region sale average=140c | TSM sale rate=78% | TSM relative value=<red>-14%</>", text)
+check("the tooltip heads Market Value over an Auctionator block, then a TSM block",
+    text == " | # Market Value | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
+historyAge = 3
+text = tooltipText()
+check("Auctionator's age falls back to its whole scan days", text:find("Auctionator=<gray>3 days ago</>", 1, true) ~= nil, text)
+historyAge = 0
+Auctionator.Database:SetPrice("25", 100)
+text = tooltipText()
+check("a price the addon saw recorded shows its age to the minute", text:find("Auctionator=<gray>1 minute ago</>", 1, true) ~= nil, text)
+for _, case in ipairs({ { 5 * 3600, "5 hours ago" }, { 3600, "1 hour ago" }, { 2 * 86400, "2 days ago" } }) do
+    time = function() return os.time() - case[1] end
+    Auctionator.Database:SetPrice("25", 100)
+    time = os.time
+    text = tooltipText()
+    check("an age of " .. case[2] .. " picks its unit", text:find("Auctionator=<gray>" .. case[2] .. "</>", 1, true) ~= nil, text)
+end
 historyDays = 1
 text = tooltipText()
-check("thin history greys the Auctionator percentage", text:find("Auctionator relative value=<gray>+20%</>", 1, true) ~= nil, text)
+check("thin history greys the Auctionator percentage", text:find("> Market Value=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
-check("without Auctionator history the TSM rows stand alone", text == " | # Relative Market Value | TSM region sale average=140c | TSM sale rate=78% | TSM relative value=<red>-14%</>", text)
+check("without Auctionator history the TSM block stands alone", text == " | # Market Value | " .. TSM_BLOCK, text)
+tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = nil, 400
+text = tooltipText()
+check("TSM shows whatever figures it has, daily sales rounded", text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0", text)
+tsmValues.DBRegionSaleAvg, tsmValues["DBRegionSoldPerDay * 1000"] = 140, 34890
 historyDays = 3
 -- Launch day on a fresh realm: TSM with no data yet, or not ready and throwing
 for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
     TSM_API.GetCustomPriceValue = lookup
     text = tooltipText()
-    check("TSM without a figure leaves Auctionator's rows alone", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</>", text)
+    check("TSM without a figure leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 end
 historyDays = 0
 text = tooltipText()
-check("no section without either average", text == "", text)
+check("no section without any figure", text == "", text)
 TSM_API.GetCustomPriceValue, historyDays = tsmLookup, 3
 
 -- ===== Market value =====
@@ -500,7 +542,7 @@ pct, trusted = relative(70)
 check("thin Auctionator history moves no glow", pct == -30 and not trusted, pct)
 historyDays = 3
 text = tooltipText()
-check("without TSM the tooltip shows Auctionator's rows alone", text == " | # Relative Market Value | Auctionator 14-day average=100c | Auctionator relative value=<green>+20%</>", text)
+check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 TSM_API = tsmApi
 
 -- ===== Memoised average =====

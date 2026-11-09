@@ -1,4 +1,4 @@
-local _, AP = ...
+local addonName, AP = ...
 
 -- Calls into Auctionator's functions, pcalled wherever Auctionator can raise on bad input; frames, mixins and event names are read in place by the modules. Item references are either an item link or an auction item key table
 AP.Bridge = {}
@@ -58,6 +58,55 @@ function AP.Bridge.PriceHistory(dbKey)
     if not db then return {} end
     local ok, history = pcall(db.GetPriceHistory, db, dbKey)
     return ok and type(history) == "table" and history or {}
+end
+
+-- Whole scan days since the key's newest price, the age Auctionator's own tooltip shows; nil without history
+function AP.Bridge.PriceAge(dbKey)
+    local db = Auctionator.Database
+    if not db then return nil end
+    local ok, days = pcall(db.GetPriceAge, db, dbKey)
+    return ok and type(days) == "number" and days or nil
+end
+
+-- ===== Price times =====
+-- Auctionator keeps one row per day and no time of day, so the addon notes when each key last got a price: every
+-- SetPrice, from Auctionator's scans, its sell searches and Sale Scan alike. Kept per realm, like Auctionator's own
+-- database, and for the 14 days the average looks back
+local SEEN_KEEP_SECONDS = 14 * 86400
+
+-- This realm's price-database key to time(); nil until the saved table has loaded
+local seenTimes
+
+local function noteSeen(_, dbKey)
+    if seenTimes and dbKey ~= nil then seenTimes[dbKey] = time() end
+end
+
+EventUtil.ContinueOnAddOnLoaded(addonName, function()
+    local db = AP.DB()
+    if type(db.seenTimes) ~= "table" then db.seenTimes = {} end
+    local realm = tostring(Auctionator.State and Auctionator.State.CurrentRealm or GetRealmName())
+    if type(db.seenTimes[realm]) ~= "table" then db.seenTimes[realm] = {} end
+    seenTimes = db.seenTimes[realm]
+
+    local cutoff = time() - SEEN_KEEP_SECONDS
+    for dbKey, seen in pairs(seenTimes) do
+        if type(seen) ~= "number" or seen < cutoff then seenTimes[dbKey] = nil end
+    end
+end)
+
+-- Auctionator builds its database at its own ADDON_LOADED, before this file runs, so the instance gets the hook; the
+-- mixin covers a database it builds again later, as its database commands do. Auctionator's tables, not Blizzard's,
+-- so no taint
+if Auctionator.DatabaseMixin and Auctionator.DatabaseMixin.SetPrice then
+    hooksecurefunc(Auctionator.DatabaseMixin, "SetPrice", noteSeen)
+end
+if Auctionator.Database and Auctionator.Database.SetPrice then
+    hooksecurefunc(Auctionator.Database, "SetPrice", noteSeen)
+end
+
+-- When a key last got a price on this realm, as time(); nil when the addon never saw it
+function AP.Bridge.SeenTime(dbKey)
+    return seenTimes and seenTimes[dbKey]
 end
 
 -- Record a live minimum price under every key of the item, the way Auctionator's own sell search does

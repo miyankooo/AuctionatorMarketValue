@@ -1,8 +1,9 @@
 local _, AP = ...
 
 -- TSM's figures for an item through TSM_API, as TSM v4.15.2 defines them on Forever: the region sale average, the
--- market value the percentages measure against wherever TSM has one, and the region sale rate. TradeSkillMaster is
--- optional; every figure is nil without it, for an item without TSM data, or while TSM is not ready yet.
+-- market value the percentages measure against wherever TSM has one, the region sale rate and the region's daily
+-- sales, plus when the TSM app last synced. TradeSkillMaster is optional; every figure is nil without it, for an item
+-- without TSM data, or while TSM is not ready yet.
 AP.TSM = {}
 
 -- TSM item string for a link, an item string or an auction item key. Keys pool suffixed gear into the base item, and
@@ -37,4 +38,31 @@ end
 function AP.TSM.SaleRate(itemRef)
     local permille = value("DBRegionSaleRate * 1000", itemRef)
     return permille and permille / 1000
+end
+
+-- How many the region sells a day, asked for in thousandths as its own tooltip does
+function AP.TSM.DailySold(itemRef)
+    local permille = value("DBRegionSoldPerDay * 1000", itemRef)
+    return permille and permille / 1000
+end
+
+-- ===== Sync time =====
+-- TSM keeps the app's last sync private, so the addon reads it where TradeSkillMaster_AppHelper hands it over: AppHelper
+-- passes each block of the app's data file to TSM's global TSM_APPHELPER_LOAD_DATA as it loads, and the APP_INFO block
+-- carries lastSync (LibTSMService AppHelper.lua). The toc's OptionalDeps loads this file after TSM defines that global,
+-- and the client's alphabetical load order before AppHelper; when AppHelper loads first, the age is simply unknown.
+-- TSM's function, not Blizzard's, so no taint
+local lastSync
+
+if type(TSM_APPHELPER_LOAD_DATA) == "function" then
+    hooksecurefunc("TSM_APPHELPER_LOAD_DATA", function(tag, _, data)
+        if tag == "APP_INFO" and type(data) == "string" then
+            lastSync = tonumber(data:match("lastSync=(%d+)")) or lastSync
+        end
+    end)
+end
+
+-- When the TSM app last synced its data, as time(); nil when unknown
+function AP.TSM.SyncTime()
+    return lastSync
 end
