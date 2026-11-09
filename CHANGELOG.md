@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.0.0...v2.1.0) (2026-11-09)
+
+
+### Features
+
+* item tooltips show a buy or sell timing verdict beside Market Value ([280265c](https://github.com/miyankooo/SimpleMarketValue/commit/280265c1c6ab99fb6a8f9306b663815ecc646584))
+* percentages and the timing verdict show green for a good price, yellow for a fair one and red for a poor one, by your Deal and Sell Thresholds ([a4764bf](https://github.com/miyankooo/SimpleMarketValue/commit/a4764bf1db7147a1869dd4b8f912616b55814572))
+* TSM figures come straight from the TSM desktop app's data, so the TradeSkillMaster addon can stay disabled ([7784238](https://github.com/miyankooo/SimpleMarketValue/commit/77842380674e6eccc208985838c26293d7e4f0fc))
+
 ## [2.0.0](https://github.com/miyankooo/SimpleMarketValue/compare/v1.0.0...v2.0.0) (2026-11-09)
 
 
