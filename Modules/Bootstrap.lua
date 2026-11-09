@@ -2,7 +2,6 @@ local _, AP = ...
 
 -- Each returns true once its piece is in place in Auctionator's frames
 local ENSURES = {
-    AP.SimilarItems.Ensure,
     AP.SaleScan.Ensure,
     AP.FullScanButton.Ensure,
 }

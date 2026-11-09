@@ -7,11 +7,6 @@ AP.title = C_AddOns.GetAddOnMetadata(addonName, "Title")
 AP.Defaults = {
     sellThresholdPct = 15,
     dealThresholdPct = 20,
-    showSimilar = true,
-    levelTolerance = 2,
-    dpsTolerancePct = 20,
-    statValueTolerance = 30,
-    statCountTolerance = 0,
 }
 
 -- The table last seeded, so the defaults are filled once per saved table instead of on every call

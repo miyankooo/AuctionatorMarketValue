@@ -1,6 +1,6 @@
 -- Offline smoke test: loads every file in toc order against stubs of the WoW API and Auctionator, logs in and opens
 -- the Auction House once, and checks the welcome line, the settings page, the tooltip rows, the Full Scan button and
--- its help tip, comparable clicks, Sale Scan, the parser, Blizzard's auction lists and the slash commands.
+-- its help tip, Sale Scan, Blizzard's auction lists and the slash commands.
 -- Run from the addon folder: lua Tests/Load.lua
 
 local failures = 0
@@ -160,10 +160,6 @@ HIGHLIGHT_FONT_COLOR, GREEN_FONT_COLOR, RED_FONT_COLOR = color("white"), color("
 GRAY_FONT_COLOR, YELLOW_FONT_COLOR, NORMAL_FONT_COLOR, WARNING_FONT_COLOR = color("gray"), color("yellow"), color("gold"), color("warn")
 ITEM_QUALITY_COLORS = { [2] = { color = color("uncommon") } }
 
-SPELL_STAT1_NAME, SPELL_STAT2_NAME, SPELL_STAT3_NAME, SPELL_STAT4_NAME, SPELL_STAT5_NAME = "Strength", "Agility", "Stamina", "Intellect", "Spirit"
-ITEM_SPELL_TRIGGER_ONEQUIP, ITEM_SPELL_TRIGGER_ONUSE, ITEM_SPELL_TRIGGER_ONPROC = "Equip:", "Use:", "Chance on hit:"
-ITEM_SET_BONUS, ITEM_SET_BONUS_GRAY = "Set: %s", "(%d) Set: %s"
-ITEM_MOD_SPELL_PENETRATION_SHORT = "Spell Piercing"
 
 Enum = {
     InventoryType = setmetatable({}, { __index = function() return 0 end }),
@@ -269,7 +265,6 @@ AuctionatorShoppingTabDataProviderMixin = provider()
 AuctionatorSearchDataProviderMixin = provider()
 AuctionatorBuyItemDataProviderMixin = provider()
 AuctionatorGroupsViewItemMixin = { SetItemInfo = function() end }
-AuctionatorSellSearchRowMixin = { OnClick = function() end }
 
 local eventBus = {}
 function eventBus:Register(listener, events) for _, e in ipairs(events) do listeners[e] = listeners[e] or {} table.insert(listeners[e], listener) end end
@@ -393,9 +388,8 @@ do
 end
 
 -- ===== Settings =====
--- The page is built at login, as its own canvas with Blizzard's settings slider and checkbox on each row
+-- The page is built at login, as its own canvas with Blizzard's settings slider on each row
 local sliders = templated.MinimalSliderWithSteppersTemplate or {}
-local checkbox = (templated.SettingsCheckboxTemplate or {})[1]
 local sliderFor, labels, headers = {}, {}, {}
 for _, slider in ipairs(sliders) do sliderFor[slider.owner.label.text] = slider end
 for _, slider in ipairs(sliders) do labels[#labels + 1] = slider.owner.label.text end
@@ -407,37 +401,26 @@ end
 
 check("the page is its own canvas named after the toc Title", canvas.frame ~= nil and canvas.name == "Simple Market Value", canvas.name)
 check("an intro opens the page", canvas.frame and canvas.frame.intro.text:find("^Compares every auction price") ~= nil)
-check("six sliders and one checkbox", #sliders == 6 and checkbox ~= nil, #sliders)
-check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold, Level Range, Weapon DPS Range, Stat Value Range, Stat Count Range", table.concat(labels, ", "))
-check("Show Similar Items on by default", checkbox.owner.label.text == "Show Similar Items" and checkbox.checked == true and AP.DB().showSimilar == true)
-check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Bag Glow, Deals, Similar Items", table.concat(headers, ", "))
+check("two sliders and no checkbox", #sliders == 2 and templated.SettingsCheckboxTemplate == nil, #sliders)
+check("settings names in Title Case", table.concat(labels, ", ") == "Sell Threshold, Deal Threshold", table.concat(labels, ", "))
+check("Blizzard's section headers head the groups", table.concat(headers, ", ") == "Bag Glow, Deals", table.concat(headers, ", "))
 local header = templated.GameFontHighlightLarge[1]
 local headerX, headerY = at(header, "TOPLEFT")
 check("a header is a 45 px slot with its title at 7, -16", header.owner.height == 45 and headerX == 7 and headerY == -16)
 check("the first header hangs under the intro", select(1, at(header.owner, "TOPLEFT")) == canvas.frame.intro)
 local relativeTo, relativePoint, x, y = at(sliderFor["Sell Threshold"], "LEFT")
 check("a slider starts at the row's CENTER -40, 3 up", relativeTo == sliderFor["Sell Threshold"].owner and relativePoint == "CENTER" and x == -40 and y == 3, tostring(x) .. " " .. tostring(y))
-relativeTo, relativePoint, x = at(checkbox, "LEFT")
-check("the checkbox shares the controls' left edge", relativeTo == checkbox.owner and relativePoint == "CENTER" and x == -40, x)
-check("dependent rows are indented 15", at(sliderFor["Level Range"].owner.label, "LEFT") == 52 and at(sliderFor["Deal Threshold"].owner.label, "LEFT") == 37 and at(checkbox.owner.label, "LEFT") == 37)
-check("sliders start at the defaults with a step count", sliderFor["Sell Threshold"].value == 15 and sliderFor["Weapon DPS Range"].steps == 10, sliderFor["Weapon DPS Range"].steps)
+check("labels start at 37", at(sliderFor["Deal Threshold"].owner.label, "LEFT") == 37)
+check("sliders start at the defaults with a step count", sliderFor["Sell Threshold"].value == 15 and sliderFor["Deal Threshold"].steps == 95, sliderFor["Deal Threshold"].steps)
 check("the label shows the value", sliderFor["Deal Threshold"].formatters[MinimalSliderWithSteppersMixin.Label.Right](20) == "-20%")
-check("every row and control has a tooltip", sliderFor["Level Range"].owner.scripts.OnEnter ~= nil and sliderFor["Level Range"].Slider.scripts.OnEnter ~= nil and checkbox.tooltipFunc ~= nil)
+check("every row and slider has a tooltip", sliderFor["Deal Threshold"].owner.scripts.OnEnter ~= nil and sliderFor["Deal Threshold"].Slider.scripts.OnEnter ~= nil)
 
 local repaint, repaints = AP.BagGlow.Repaint, 0
 AP.BagGlow.Repaint = function() repaints = repaints + 1 end
 sliderFor["Sell Threshold"]:SetValue(30)
-sliderFor["Level Range"]:SetValue(4)
-check("a slider saves its value", AP.DB().sellThresholdPct == 30 and AP.DB().levelTolerance == 4)
-check("only the threshold repaints the glow", repaints == 1, repaints)
-
-checkbox:Click()
-check("Show Similar Items saves its value", AP.DB().showSimilar == false)
-check("range rows grey out while Show Similar Items is off", sliderFor["Level Range"].enabled == false and sliderFor["Level Range"].owner.label.color == "gray" and sliderFor["Sell Threshold"].enabled == nil)
-check("the checkbox sounds like Blizzard's", sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
-checkbox.owner.scripts.OnMouseUp(checkbox.owner, "LeftButton")
-check("a click on the label ticks the box", checkbox.checked == true and AP.DB().showSimilar == true and sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON and sliderFor["Level Range"].enabled == true)
-checkbox:Click()
+sliderFor["Deal Threshold"]:SetValue(40)
+check("a slider saves its value", AP.DB().sellThresholdPct == 30 and AP.DB().dealThresholdPct == 40)
+check("only the sell threshold repaints the bag glow", repaints == 1, repaints)
 
 local defaults
 for _, button in ipairs(templated.UIPanelButtonTemplate or {}) do
@@ -445,8 +428,8 @@ for _, button in ipairs(templated.UIPanelButtonTemplate or {}) do
 end
 repaints = 0
 defaults:Click()
-check("Defaults restores every setting", AP.DB().sellThresholdPct == 15 and AP.DB().levelTolerance == 2 and AP.DB().showSimilar == true and sliderFor["Sell Threshold"].value == 15 and checkbox.checked == true)
-check("Defaults enables the range rows and repaints the glow", sliderFor["Level Range"].enabled == true and sliderFor["Level Range"].owner.label.color == "gold" and repaints > 0)
+check("Defaults restores every setting", AP.DB().sellThresholdPct == 15 and AP.DB().dealThresholdPct == 20 and sliderFor["Sell Threshold"].value == 15 and sliderFor["Deal Threshold"].value == 20)
+check("Defaults repaints the bag glow", repaints > 0)
 AP.BagGlow.Repaint = repaint
 
 -- ===== Chat =====
@@ -457,7 +440,6 @@ InCombatLockdown = function() return false end
 check("an open in combat prints one gold-prefixed line", #printed == 1 and printed[1] == "<gold>[Simple Market Value]</>: Opens after combat.", printed[1])
 
 -- ===== AH open =====
-check("Similar ensure", AP.SimilarItems.Ensure())
 check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
 
@@ -589,12 +571,6 @@ check("label shows the scan progress", fullScan.text == "Full Scan 42%", fullSca
 Auctionator.EventBus:Fire(nil, "replicate_scan_complete")
 check("a finished scan shows green 100%", fullScan.text == "<green>Full Scan 100%</>", fullScan.text)
 
--- ===== Comparable click undercuts =====
-fired = {}
-AuctionatorSellSearchRowMixin.OnClick({ rowData = { apComparable = true, price = 500 } }, "LeftButton")
-local last = fired[#fired]
-check("comparable click undercuts", last and last[1] == "PriceSelected" and last[2].buyout == 500 and last[3] == true)
-
 -- ===== Sale Scan disabled while slotted =====
 local saleItem = AuctionatorSellingFrame.SaleItemFrame
 local scanButton = upvalue(AP.SaleScan.Ensure, "scanButton")
@@ -617,10 +593,6 @@ check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow
 check("the glow is kept off Auctionator's button", rawget(bagButton, "addonGlow") == nil)
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, {})
 check("an emptied bag slot drops the glow", bagGlow and not bagGlow.shown)
-
--- ===== Parser =====
-local stats = AP.ItemStats.FullStatSet("equip: decreases the magical resistances of your spell targets by 10.")
-check("vanilla spell piercing parses", stats.spellpenetration == 10, stats.spellpenetration)
 
 -- ===== Blizzard's auction lists =====
 -- A list stand-in: rows with Blizzard's rowData and three cells, each with money and a right edge, that record

@@ -121,20 +121,6 @@ function AP.Bridge.Listen(events, handler)
     return listener
 end
 
--- Fire an event-bus event from this addon, registering a source the way Auctionator requires
-local source = {}
-local function fire(eventName, ...)
-    Auctionator.EventBus
-        :RegisterSource(source, "SimpleMarketValue")
-        :Fire(source, eventName, ...)
-        :UnregisterSource(source)
-end
-
--- Set the sale price from a listed price with Auctionator's undercut, as a click on its own rows does
-function AP.Bridge.SelectPrice(price)
-    fire(Auctionator.Selling.Events.PriceSelected, { buyout = price }, true)
-end
-
 -- ===== Auction house =====
 -- Whether Auctionator's "Alternate Scan Mode" option is on: Auctionator then runs the replicate scan, allowed once per
 -- 15 minutes, and otherwise (its default) the incremental browse scan
@@ -148,20 +134,6 @@ function AP.Bridge.StartFullScan()
     local state = Auctionator.State
     local scanFrame = AP.Bridge.IsReplicateScan() and state.FullScanFrameRef or state.IncrementalScanFrameRef
     if scanFrame then scanFrame:InitiateScan() end
-end
-
--- Category browse through Auctionator's throttle queue
-function AP.Bridge.Browse(query)
-    pcall(Auctionator.AH.SendBrowseQuery, query)
-end
-
--- False until the queued browse was actually sent, so an earlier browse's results never pass for it
-function AP.Bridge.BrowseFinished()
-    return Auctionator.AH.HasFullBrowseResults()
-end
-
-function AP.Bridge.BrowseMore()
-    pcall(Auctionator.AH.RequestMoreBrowseResults)
 end
 
 -- Single-item search through Auctionator's retrying scanner, with owned auctions split out as Auctionator's own searches do; gear uses the sell search so every suffix variant answers
