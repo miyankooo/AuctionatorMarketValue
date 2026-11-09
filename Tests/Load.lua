@@ -605,6 +605,25 @@ runNextFrame()
 AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
 check("an item without a TSM figure shows Auctionator's", entries[1].apTrendText == "<green>-30%</>" and entries[1].apTrendValue == -30, entries[1].apTrendText)
 tsmValues.DBRegionSaleAvg = 140
+-- Auctionator alone, then TSM installed but without data (its app never synced) or not ready and throwing
+local function shoppingColumn()
+    entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
+    runNextFrame()
+    AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, entries)
+    return entries[1].apTrendText, entries[1].apTrendValue
+end
+TSM_API = nil
+local columnText, columnValue = shoppingColumn()
+check("with Auctionator alone the column shows Auctionator's percentage", columnText == "<green>-30%</>" and columnValue == -30, columnText)
+TSM_API = tsmApi
+for _, lookup in ipairs({ function() return nil end, function() error("not ready") end }) do
+    TSM_API.GetCustomPriceValue = lookup
+    columnText, columnValue = shoppingColumn()
+    check("TSM without a sale average leaves the column on Auctionator's", columnText == "<green>-30%</>" and columnValue == -30, columnText)
+end
+TSM_API.GetCustomPriceValue = tsmLookup
+columnText, columnValue = shoppingColumn()
+check("with TSM set up the column is back on TSM's", columnText == "<green>-50%</>" and columnValue == -50, columnText)
 
 -- ===== Sale Scan disabled while slotted =====
 local saleItem = AuctionatorSellingFrame.SaleItemFrame
@@ -716,6 +735,22 @@ check("the item buy header sits over the column", header and header.text == "Rel
 check("a deal by TSM's percentage glows", cheap.texture ~= nil and cheap.texture.shown)
 check("a row above the deal threshold by TSM never glows", dear.texture == nil)
 check("nothing is written to Blizzard's rows", rawget(cheap, "apRowData") == nil and rawget(cheap, "apDeal") == nil and rawget(cheap.cells[2], "apRelative") == nil)
+
+-- Auctionator alone: the same rows, handed fresh results, measure against Auctionator's 100
+do
+    local cheapData, dearData = cheap.rowData, dear.rowData
+    TSM_API = nil
+    cheap.rowData, dear.rowData = { itemKey = { itemID = 25 }, buyoutAmount = 70 }, { itemKey = { itemID = 25 }, buyoutAmount = 130 }
+    runNextFrame()
+    update()
+    check("with Auctionator alone Blizzard's buy rows show Auctionator's percentage", cheap.fontString.text == "<green>-30%</>" and dear.fontString.text == "<red>+30%</>", cheap.fontString.text .. " " .. dear.fontString.text)
+    check("and a deal by Auctionator's percentage glows", cheap.texture.shown)
+    TSM_API = tsmApi
+    cheap.rowData, dear.rowData = cheapData, dearData
+    runNextFrame()
+    update()
+    check("with TSM back the rows return to TSM's percentage", cheap.fontString.text == "<green>-50%</>" and dear.fontString.text == "<green>-7%</>", cheap.fontString.text .. " " .. dear.fontString.text)
+end
 
 to, toPoint, x = anchor(commodity.fontString, "LEFT")
 check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-50%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
