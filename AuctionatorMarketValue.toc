@@ -16,7 +16,7 @@
 Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
-# The TSM app's price data, kept only while the TSM addon is off (Modules\TSM.lua)
+# The TSM app's price data: its age always, its values only while the TSM addon is off (Modules\TSM.lua)
 ..\TradeSkillMaster_AppHelper\AppData.lua
 Modules\ItemStats.lua
 Modules\PriceHistory.lua

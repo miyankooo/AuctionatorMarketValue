@@ -43,19 +43,22 @@ local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without usable history
+-- Average minimum buyout inside the history window for one price-database key, the days it rests on and the days since
+-- the newest of them; nil without usable history
 local function averageFor(dbKey)
-    local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
-    local recent = {}
+    local today = currentScanDay()
+    local cutoffDay = today - HISTORY_WINDOW_DAYS
+    local recent, newestDay = {}, nil
     for _, entry in ipairs(AP.Bridge.PriceHistory(dbKey)) do
         local day = tonumber(entry.rawDay)
         local minSeen = tonumber(entry.minSeen)
         if (not day or day > cutoffDay) and minSeen and minSeen > 0 then
             recent[#recent + 1] = minSeen
+            if day and (not newestDay or day > newestDay) then newestDay = day end
         end
     end
     if #recent == 0 then return nil end
-    return { math.floor(interquartileMean(recent) + 0.5), #recent }
+    return { math.floor(interquartileMean(recent) + 0.5), #recent, newestDay and math.max(0, today - newestDay) }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that
@@ -72,11 +75,11 @@ local function cachedAverage(dbKey)
     return frameAverages[dbKey] or nil
 end
 
--- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it
+-- First key with usable history, so a suffix or item-level key measures against its own market before the pooled base item, matching Auctionator's price lookups. Also returns the days of history behind it and the days since its newest price
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average[1] > 0 then return average[1], average[2] end
+        if average and average[1] > 0 then return average[1], average[2], average[3] end
     end
     return nil
 end
@@ -152,22 +155,43 @@ local function addBlock(tooltip, heading)
     GameTooltip_AddNormalLine(tooltip, heading)
 end
 
+local function count(amount, unit)
+    return ("%d %s%s ago"):format(amount, unit, amount == 1 and "" or "s")
+end
+
+-- " (seen 7 days ago)": when Auctionator last saw a price, in whole scan days
+local function seenText(daysAgo)
+    if not daysAgo then return "" end
+    return (" (seen %s)"):format(daysAgo == 0 and "today" or count(daysAgo, "day"))
+end
+
+-- " (updated 3 hours ago)": the age of the TSM app's download, which refreshes about hourly
+local function updatedText(updateTime)
+    if type(updateTime) ~= "number" then return "" end
+    local minutes = math.max(0, math.floor((time() - updateTime) / 60))
+    local age = (minutes < 60 and count(math.max(1, minutes), "minute"))
+        or (minutes < 48 * 60 and count(math.floor(minutes / 60), "hour"))
+        or count(math.floor(minutes / 1440), "day")
+    return (" (updated %s)"):format(age)
+end
+
 -- An Auctionator block with the average and the last known price against it, then a TSM block with TSM's market value
--- and the same comparison when TSM has one; nothing without either, and Auctionator's own lines are left untouched
+-- and the same comparison when TSM has one; nothing without either, and Auctionator's own lines are left untouched.
+-- Each value's label carries the age of its newest data
 local function addPriceRows(tooltip, itemLink)
-    local average, days = AP.Trend.AverageFor(itemLink)
-    local tsmMarket = AP.TSM.MarketValueFor(itemLink)
+    local average, days, daysAgo = AP.Trend.AverageFor(itemLink)
+    local tsmMarket, tsmUpdated = AP.TSM.MarketValueFor(itemLink)
     if not (average or tsmMarket) then return end
 
     local auction = AP.Bridge.AuctionPrice(itemLink)
     if average then
         addBlock(tooltip, "Auctionator")
-        addRow(tooltip, ("14-day average (%d %s)"):format(days, days == 1 and "day" or "days"), AP.Bridge.Money(average))
+        addRow(tooltip, "14-day average" .. seenText(daysAgo), AP.Bridge.Money(average))
         addRow(tooltip, "Last price vs average", AP.Trend.Colorize(AP.Trend.Percent(auction, average), AP.Trend.Mode(), days))
     end
     if tsmMarket then
         addBlock(tooltip, "TSM")
-        addRow(tooltip, "Market value", AP.Bridge.Money(tsmMarket))
+        addRow(tooltip, "Market value" .. updatedText(tsmUpdated), AP.Bridge.Money(tsmMarket))
         addRow(tooltip, "Last price vs market value", AP.Trend.Colorize(AP.Trend.Percent(auction, tsmMarket), AP.Trend.Mode()))
     end
 

@@ -255,6 +255,7 @@ local fired = {}
 local listeners = {}
 local historyBuilds = 0
 local historyDays = 3
+local historyAge = 0
 
 local function provider()
     return {
@@ -304,7 +305,7 @@ Auctionator = {
             historyBuilds = historyBuilds + 1
             local today = math.floor(os.time() / 86400)
             local rows = {}
-            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - day, minSeen = 100 } end
+            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = 100 } end
             return rows
         end,
     },
@@ -456,13 +457,26 @@ check("Full Scan ensure", AP.FullScanButton.Ensure())
 
 -- ===== Tooltip rows =====
 tooltipPostCall(GameTooltip)
-check("tooltip shows the Auctionator block", tooltipLines[2] == "# Auctionator" and tooltipLines[3] == "14-day average (3 days)=100c" and tooltipLines[4] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
+check("tooltip shows the Auctionator block", tooltipLines[2] == "# Auctionator" and tooltipLines[3] == "14-day average (seen today)=100c" and tooltipLines[4] == "Last price vs average=<green>+20%</>", table.concat(tooltipLines, " | "))
 historyDays = 1
 runNextFrame()
 tooltipLines = {}
 tooltipPostCall(GameTooltip)
-check("thin history greys the percentage", tooltipLines[3] == "14-day average (1 day)=100c" and tooltipLines[4] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
-historyDays = 3
+check("thin history greys the percentage", tooltipLines[3] == "14-day average (seen today)=100c" and tooltipLines[4] == "Last price vs average=<gray>+20%</>", table.concat(tooltipLines, " | "))
+historyDays, historyAge = 3, 7
+runNextFrame()
+tooltipLines = {}
+tooltipPostCall(GameTooltip)
+check("the average shows when its newest price was seen", tooltipLines[3] == "14-day average (seen 7 days ago)=100c", table.concat(tooltipLines, " | "))
+historyAge = 1
+runNextFrame()
+tooltipLines = {}
+tooltipPostCall(GameTooltip)
+check("one day ago reads singular", tooltipLines[3] == "14-day average (seen 1 day ago)=100c", table.concat(tooltipLines, " | "))
+historyAge = 0
+tooltipLines = {}
+runNextFrame()
+tooltipPostCall(GameTooltip)
 
 -- ===== TSM rows =====
 check("no TSM block without TSM", #tooltipLines == 4, #tooltipLines)
@@ -474,6 +488,7 @@ tooltipLines = {}
 runNextFrame()
 tooltipPostCall(GameTooltip)
 check("the TSM block follows the Auctionator block", tooltipLines[5] == "" and tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
+-- Without the TSM app's file its age is unknown and the label stays bare
 -- Launch day on a fresh realm: TSM loaded with no scan yet, or not ready and throwing
 for _, lookup in ipairs({ function() return nil end, function() error("not loaded") end }) do
     TSM_API.GetCustomPriceValue = lookup
@@ -486,11 +501,18 @@ TSM_API = nil
 
 -- ===== TSM app data =====
 -- With the TSM addon off, the same figure comes from the TSM app's AppData.lua, for this ruleset, faction and region only
-local function block(fields, rows) return ("return {downloadTime=1,fields={%s},data={%s}}"):format(fields, rows) end
-TSM_API = {}
+local downloadTime = os.time() - 3 * 3600
+local function block(fields, rows) return ("return {downloadTime=%d,fields={%s},data={%s}}"):format(downloadTime, fields, rows) end
+TSM_API = { ToItemString = function() return "i:25" end, GetCustomPriceValue = function() return 80 end }
 AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","marketValue"', "{25,1}"))
+check("the TSM addon's value carries the app data's age", select(2, AP.TSM.MarketValueFor("item:25")) == downloadTime)
+tooltipLines = {}
+runNextFrame()
+tooltipPostCall(GameTooltip)
+check("the TSM label shows the data's age in hours", tooltipLines[7] == "Market value (updated 3 hours ago)=80c", table.concat(tooltipLines, " | "))
 TSM_API = nil
 check("app data is skipped while the TSM addon is loaded", AP.TSM.MarketValueFor("item:25") == nil)
+downloadTime = os.time() - 90
 AP.LoadData("APP_INFO", "Global", "return {}")
 AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "Normal-Alliance", block('"itemString","marketValue"', "{25,99}"))
 AP.LoadData("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", block('"itemString","minBuyout","marketValue"', '{25,1,2g},{"i:26::i100",1,1}'))
@@ -502,7 +524,7 @@ check("app data has no figure for unknown items", AP.TSM.MarketValueFor("item:28
 tooltipLines = {}
 runNextFrame()
 tooltipPostCall(GameTooltip)
-check("app data fills the TSM block without the TSM addon", tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
+check("app data fills the TSM block without the TSM addon", tooltipLines[6] == "# TSM" and tooltipLines[7] == "Market value (updated 1 minute ago)=80c" and tooltipLines[8] == "Last price vs market value=<green>+50%</>", table.concat(tooltipLines, " | "))
 
 -- ===== Memoised average =====
 runNextFrame()

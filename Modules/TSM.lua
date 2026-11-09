@@ -52,9 +52,12 @@ local function isOwnBlock(tag, realmOrRegion)
     return false
 end
 
--- AppData.lua calls this once per block. The TSM addon imports the file itself while it is loaded, so nothing is kept then
+-- Download time of the newest block holding marketValue, the age of DBMarket while the TSM addon reads the same file
+local newestDownload
+
+-- AppData.lua calls this once per block. The TSM addon imports the file itself while it is loaded, so only the download time is kept then
 function AP.LoadData(tag, realmOrRegion, data)
-    if TSM_API or type(tag) ~= "string" or type(realmOrRegion) ~= "string" or type(data) ~= "string" then return end
+    if type(tag) ~= "string" or type(realmOrRegion) ~= "string" or type(data) ~= "string" then return end
     if not isOwnBlock(tag, realmOrRegion) then return end
 
     -- The payload reads return {downloadTime=...,fields={"itemString",...},data={{item,value,...},...}}
@@ -70,11 +73,15 @@ function AP.LoadData(tag, realmOrRegion, data)
     end
     if not column or column == 0 then return end
 
+    local downloadTime = tonumber(head:match("downloadTime=(%d+)"))
+    if downloadTime and (not newestDownload or downloadTime > newestDownload) then newestDownload = downloadTime end
+    if TSM_API then return end
+
     local rows = {}
     for item, values in body:gmatch('{"?([^,"]+)"?,([^}]+)}') do
         rows[tonumber(item) and ("i:" .. item) or item] = values
     end
-    appBlocks[#appBlocks + 1] = { column = column, rows = rows }
+    appBlocks[#appBlocks + 1] = { column = column, rows = rows, downloadTime = downloadTime }
 end
 
 -- TSM packs each value in base 32 and cuts values over 6 digits in two, since tonumber only holds 32 bits
@@ -95,16 +102,21 @@ local function appValue(itemRef)
         local row = block.rows[key]
         if row then
             local packed = select(block.column, strsplit(",", row))
-            return packed and unpackValue(packed)
+            return packed and unpackValue(packed), block.downloadTime
         end
     end
     return nil
 end
 
--- Realm market value in copper from the TSM addon while it is loaded, otherwise from the TSM app's data. Nil without a figure
+-- Realm market value in copper from the TSM addon while it is loaded, otherwise from the TSM app's data, and the
+-- download time of the data behind it, nil when unknown. Nil without a figure
 function AP.TSM.MarketValueFor(itemRef)
-    local amount
-    if TSM_API then amount = addonValue(itemRef) else amount = appValue(itemRef) end
-    if type(amount) == "number" and amount > 0 then return amount end
+    local amount, downloadTime
+    if TSM_API then
+        amount, downloadTime = addonValue(itemRef), newestDownload
+    else
+        amount, downloadTime = appValue(itemRef)
+    end
+    if type(amount) == "number" and amount > 0 then return amount, downloadTime end
     return nil
 end
