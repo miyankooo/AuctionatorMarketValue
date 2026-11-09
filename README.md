@@ -2,22 +2,20 @@
 
 # Simple Market Value
 
-A WoW Forever addon that shows how every auction price compares to its market value: the 14-day average from Auctionator's scans and, with TradeSkillMaster, TSM's market value. It works in Auctionator and in Blizzard's Auction House. Needs Auctionator.
+A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what sells well. The market value is the 14-day average of Auctionator's scans or, with TradeSkillMaster installed, TSM's region sale average. It works in Auctionator and in Blizzard's Auction House. Needs Auctionator.
 
 ## Features
 
-- Tooltips show an item's 14-day average, when its price was last seen, and how its last price compares.
-- TradeSkillMaster support: tooltips also show TSM's market value, how old that data is, and how the last price compares to it, from the TSM addon or, with the addon off, from the TSM desktop app's data.
-- Auction lists show each price as a percentage of the average, and deals glow green.
+- Item tooltips show a Relative Market Value section: Auctionator's 14-day average and how the last price compares, and with TradeSkillMaster also TSM's region sale average, its sale rate and the same comparison.
 - A Relative column in Auctionator's Shopping and Selling tabs and in Blizzard's auction lists.
-- A price you type to sell shows its percentage before you post.
-- Similar auctions help you price gear and bags.
+- Deals glow green in Blizzard's buy lists.
+- Items worth selling glow green in Auctionator's Selling tab.
 - Sale Scan refreshes the prices of everything in your bags with one click.
 - A Full Scan button on Auctionator's Shopping tab refreshes every price on the Auction House, with its progress on the button.
 
 ## Usage
 
 1. Open the Auction House and click Full Scan in Auctionator's Shopping tab, or Sale Scan in its Selling tab, so prices exist.
-2. Hover an item to see its average. A gray percentage rests on fewer than 3 days of prices. With the TradeSkillMaster addon or its desktop app installed, the TSM rows appear on their own.
+2. Hover an item to see its market value. A gray percentage rests on fewer than 3 days of prices. With TradeSkillMaster and its desktop app, the TSM rows appear on their own.
 3. Browse and shop as usual. Green rows are deals. Sort by Relative to find the cheapest listings.
-4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold, the Deal Threshold and the Similar Items ranges. `/smv help` lists the commands, `/smv intro` shows the welcome line and the Full Scan tip again.
+4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold and the Deal Threshold. `/smv help` lists the commands.
