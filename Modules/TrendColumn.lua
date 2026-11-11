@@ -1,6 +1,6 @@
 local _, AP = ...
 
--- Relative column for Auctionator's shopping results, the selling tab's current prices and the shopping buy screen of one item; it stores a display string and a numeric sort key on every result entry. The provider mixins exist at load time; the AH frames that copy them are created on first open
+-- Relative column for Auctionator's shopping results, the selling tab's current prices and the shopping buy screens of one item and of one commodity; it stores a display string and a numeric sort key on every result entry. The provider mixins exist at load time; the AH frames that copy them are created on first open
 
 -- Entry fields the column shows and sorts by
 local TEXT_FIELD = "apTrendText"
@@ -23,8 +23,26 @@ local TREND_COLUMN = {
     width = 64,
 }
 
--- Append the column once per provider through a private copy, so Auctionator's shared layout table stays untouched
-local function wrapLayout(mixin)
+-- The commodity buy list sits in a narrow inset, so the column follows the price, as on Blizzard's lists, and takes
+-- its width from the blank Auctionator's price column keeps left of the money; three-digit gold still fits
+local COMMODITY_PRICE_WIDTH = 120
+
+local function besidePrice(columns)
+    local price = columns[1]
+    if not (price and price.cellTemplate == "AuctionatorPriceCellTemplate") then
+        columns[#columns + 1] = TREND_COLUMN
+        return
+    end
+    local narrow = {}
+    for key, value in pairs(price) do narrow[key] = value end
+    narrow.width = COMMODITY_PRICE_WIDTH
+    columns[1] = narrow
+    table.insert(columns, 2, TREND_COLUMN)
+end
+
+-- Add the column once per provider through a private copy, so Auctionator's shared layout table stays untouched:
+-- at the end, or where place puts it
+local function wrapLayout(mixin, place)
     local original = mixin.GetTableLayout
     mixin.GetTableLayout = function(self)
         if not self.apLayout then
@@ -32,7 +50,11 @@ local function wrapLayout(mixin)
             for _, column in ipairs(original(self)) do
                 merged[#merged + 1] = column
             end
-            merged[#merged + 1] = TREND_COLUMN
+            if place then
+                place(merged)
+            else
+                merged[#merged + 1] = TREND_COLUMN
+            end
             self.apLayout = merged
         end
         return self.apLayout
@@ -49,8 +71,9 @@ local function wrapSort(mixin)
         local ascending = sortDirection == Auctionator.Constants.SORT.ASCENDING
         table.sort(self.results, function(a, b)
             local av, bv = a[fieldName], b[fieldName]
+            -- Ties keep the list's own order: Auctionator's result index, or a commodity row's place by price
             if av == bv then
-                return (a.sortingIndex or 0) < (b.sortingIndex or 0)
+                return (a.sortingIndex or a.rowIndex or 0) < (b.sortingIndex or b.rowIndex or 0)
             end
             if av == nil then return false end
             if bv == nil then return true end
@@ -84,3 +107,16 @@ hooksecurefunc(AuctionatorSearchDataProviderMixin, "AppendEntries", decorateEach
 wrapLayout(AuctionatorBuyItemDataProviderMixin)
 wrapSort(AuctionatorBuyItemDataProviderMixin)
 hooksecurefunc(AuctionatorBuyItemDataProviderMixin, "AppendEntries", decorateEach("price", AP.Trend.UP_RED))
+
+-- Shopping buy screen of one commodity: a buyer's view. Its rows carry only a unit price, so the item comes from the
+-- frame that holds the provider, set before its search
+wrapLayout(AuctionatorBuyCommodityDataProviderMixin, besidePrice)
+wrapSort(AuctionatorBuyCommodityDataProviderMixin)
+hooksecurefunc(AuctionatorBuyCommodityDataProviderMixin, "AppendEntries", function(self, entries)
+    local itemID = self:GetParent().expectedItemID
+    if type(entries) ~= "table" or not itemID then return end
+    local itemRef = AP.Bridge.BaseItemKey(itemID)
+    for _, entry in ipairs(entries) do
+        setTrend(entry, entry.price, itemRef, AP.Trend.UP_RED)
+    end
+end)

@@ -275,6 +275,14 @@ end
 AuctionatorShoppingTabDataProviderMixin = provider()
 AuctionatorSearchDataProviderMixin = provider()
 AuctionatorBuyItemDataProviderMixin = provider()
+-- Auctionator's commodity buy list: its price, quantity and hidden sellers columns
+local commodityLayout = {
+    { headerText = "Buyout Price", cellTemplate = "AuctionatorPriceCellTemplate", width = 145 },
+    { headerText = "Available", cellTemplate = "AuctionatorStringCellTemplate" },
+    { headerText = "Sellers", cellTemplate = "AuctionatorTooltipStringCellTemplate", defaultHide = true },
+}
+AuctionatorBuyCommodityDataProviderMixin = provider()
+AuctionatorBuyCommodityDataProviderMixin.GetTableLayout = function() return commodityLayout end
 AuctionatorGroupsViewItemMixin = { SetItemInfo = function() end }
 
 local eventBus = {}
@@ -760,6 +768,30 @@ tsmValues.regionSale = 140
 setAppData(tsmValues)
 columnText, columnValue = shoppingColumn()
 check("with TSM set up the column is back on TSM's", columnText == "<green>-50%</>" and columnValue == -50, columnText)
+
+-- Auctionator's commodity buy list: the column follows a narrower price column, and its rows, which carry only a unit
+-- price, take the item from the frame holding the provider
+local commodityProvider = setmetatable({
+    GetParent = function() return { expectedItemID = 25 } end,
+    SetDirty = function() end,
+}, { __index = AuctionatorBuyCommodityDataProviderMixin })
+local layout = commodityProvider:GetTableLayout()
+check("the commodity buy column follows a narrower price column",
+    #layout == 4 and layout[1].width == 120 and layout[1].headerText == "Buyout Price" and layout[2].headerText == "Relative"
+        and layout[3].headerText == "Available" and layout[4].headerText == "Sellers",
+    #layout .. " " .. tostring(layout[1].width) .. " " .. tostring(layout[2].headerText))
+check("Auctionator's own commodity layout stays untouched", #commodityLayout == 3 and commodityLayout[1].width == 145)
+local commodityRows = { { price = 70, rowIndex = 2 }, { price = 70, rowIndex = 1 }, { price = 130, rowIndex = 3 } }
+commodityProvider:AppendEntries(commodityRows, true)
+check("commodity buy rows show TSM's percentage in the buyer's colours",
+    commodityRows[1].apTrendText == "<green>-50%</>" and commodityRows[3].apTrendText == "<yellow>-7%</>" and commodityRows[1].apTrendValue == -50,
+    commodityRows[1].apTrendText)
+commodityProvider.results = commodityRows
+commodityProvider:Sort("apTrendValue", Auctionator.Constants.SORT.ASCENDING)
+local sortedRows = commodityProvider.results
+check("sorting by the column keeps equal rows in price order",
+    sortedRows[1].rowIndex == 1 and sortedRows[2].rowIndex == 2 and sortedRows[3].rowIndex == 3,
+    sortedRows[1].rowIndex .. sortedRows[2].rowIndex .. sortedRows[3].rowIndex)
 
 -- ===== Sale Scan disabled while slotted =====
 local saleItem = AuctionatorSellingFrame.SaleItemFrame
