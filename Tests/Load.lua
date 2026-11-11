@@ -44,14 +44,16 @@ function frameMethods:SetWidth(w) self.width = w end
 function frameMethods:SetHeight(h) self.height = h end
 function frameMethods:GetWidth() return self.width or 0 end
 function frameMethods:GetHeight() return self.height or 0 end
-function frameMethods:Click(button) self.scripts.OnClick(self, button or "LeftButton") end
+-- A CheckButton ticks or unticks itself before its OnClick runs, as the client does
+function frameMethods:Click(button)
+    if self.kind == "CheckButton" then self.checked = not self.checked end
+    self.scripts.OnClick(self, button or "LeftButton")
+end
 function frameMethods:CreateFontString(_, _, fontObject) return CreateFrame("FontString", nil, self, fontObject) end
 function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) end
 function frameMethods:SetupMenu(fn) self.menu = fn end
 function frameMethods:SetAtlas(atlas) self.atlas = atlas end
 function frameMethods:SetTextColor(r) self.color = r end
-function frameMethods:LockHighlight() self.highlightLocked = true end
-function frameMethods:UnlockHighlight() self.highlightLocked = false end
 function frameMethods:SetPoint(point, relativeTo, relativePoint, x, y) self.points = self.points or {} self.points[point] = { relativeTo, relativePoint, x, y } end
 
 -- Blizzard's callback registry on the settings slider and checkbox: callbacks run with their owner first
@@ -942,7 +944,7 @@ cheap.cells, dear.cells = dear.cells, cheap.cells
 update()
 check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-50%</>")
 
--- ===== Deals button =====
+-- ===== Highlight Deals =====
 -- An Auctionator listing stand-in: rows on a ScrollBox under ScrollArea, as AuctionatorResultsListingTemplate has them
 local function listing(rows)
     local frame = CreateFrame("Frame")
@@ -961,25 +963,25 @@ local ready = AP.GreatDeals.Ensure()
 CreateFrame = createFrame
 local function paintShopping() for _, p in ipairs(listingPainters) do p.scripts.OnUpdate(p) end end
 
-local greatButton = upvalue(AP.GreatDeals.Ensure, "button")
-local left = greatButton and greatButton.points.LEFT
-check("Deals sits right of Full Scan", greatButton and greatButton.text == "Deals"
+local greatBox = upvalue(AP.GreatDeals.Ensure, "checkbox")
+local left = greatBox and greatBox.points.LEFT
+check("Highlight Deals is a checkbox right of Full Scan", greatBox and greatBox.template == "CheckboxWithLabelTemplate"
+    and greatBox.Text.text == "Highlight Deals" and greatBox.width == 24
     and left[1] == fullScan and left[2] == "RIGHT" and left[3] == 8)
 check("it waits for Auctionator's buy screens, with a painter on the shopping results", not ready and #listingPainters == 1)
-check("it starts off and enabled with TSM's sale rates", not AP.GreatDeals.IsOn() and greatButton:IsEnabled() and not greatButton.highlightLocked)
+check("it starts unticked and enabled with TSM's sale rates", not AP.GreatDeals.IsOn() and greatBox:IsEnabled() and not greatBox:GetChecked())
 local instruction, errorLine
 local addInstruction, addError = GameTooltip_AddInstructionLine, GameTooltip_AddErrorLine
 GameTooltip_AddInstructionLine = function(_, text) instruction = text end
 GameTooltip_AddErrorLine = function(_, text) errorLine = text end
-greatButton.scripts.OnEnter(greatButton)
-check("its tooltip says what a click does", instruction == "Click to turn it on." and errorLine == nil, instruction)
+greatBox.scripts.OnEnter(greatBox)
+check("its tooltip explains it, with no click line beside the tick", instruction == nil and errorLine == nil, instruction)
 paintShopping()
 check("off, Auctionator's rows never glow", shoppingRows[1].texture == nil)
 
-greatButton:Click()
-check("a click turns it on, saved, with the button held lit", AP.DB().greatDeals == true and AP.GreatDeals.IsOn() and greatButton.highlightLocked)
-greatButton.scripts.OnEnter(greatButton)
-check("then the tooltip offers to turn it off", instruction == "Click to turn it off.", instruction)
+greatBox:Click()
+check("a click ticks it, saved, with the checkbox sound", AP.DB().greatDeals == true and AP.GreatDeals.IsOn() and greatBox:GetChecked()
+    and sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
 update()
 check("on, a cheap item TSM sees sell 78% of the time stops glowing in Blizzard's lists", not cheap.texture.shown)
 
@@ -1008,14 +1010,15 @@ check("ready once Auctionator's buy screens exist", AP.GreatDeals.Ensure() == tr
 
 setAppData(nil)
 check("without TSM's sale rates it reads off", not AP.GreatDeals.IsOn())
-greatButton.scripts.OnEnter(greatButton)
+greatBox.scripts.OnEnter(greatBox)
 check("and the tooltip says what it needs", errorLine == "Needs the sale rates of the TSM desktop app.", errorLine)
 update()
 check("Blizzard's lists then glow by the Deal Threshold", cheap.texture.shown)
 setAppData(tsmValues)
 
-greatButton:Click()
-check("a second click turns it off", AP.DB().greatDeals == false and not greatButton.highlightLocked)
+greatBox:Click()
+check("a second click unticks it", AP.DB().greatDeals == false and not greatBox:GetChecked()
+    and sounds[#sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
 paintShopping()
 check("off again, Auctionator's glow goes", not shoppingRows[1].texture.shown)
 update()
@@ -1060,7 +1063,7 @@ setAppData(nil)
 capture(function() slash("intro") end)
 check("without it the welcome line ends with what the TSM desktop app adds", printed[1] == welcome
     .. " Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale rates for more "
-    .. "reliable values and the Deals button.", printed[1])
+    .. "reliable values and Highlight Deals.", printed[1])
 setAppData(tsmValues)
 check("/smv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
 local inits = tip.inits

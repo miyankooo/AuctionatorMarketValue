@@ -153,7 +153,7 @@ end
 
 -- ===== Great deals =====
 -- At least this far under the market value, in whole percent, with at least this TSM sale rate: an item that is cheap
--- and still sells, the rows the Deals button lights
+-- and still sells, the rows Highlight Deals lights
 AP.Trend.GREAT_DEAL_PCT = 50
 AP.Trend.GREAT_DEAL_SALE_RATE = 80
 

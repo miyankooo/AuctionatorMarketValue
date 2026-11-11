@@ -77,3 +77,17 @@ function AP.CreateButton(parent, label, width)
     button:SetSize(width, 24)
     return button
 end
+
+-- CheckboxWithLabelTemplate (Blizzard_SharedXML/Shared/Button/CheckButtonTemplates.xml:78), the minimal art Blizzard's
+-- Settings use, at the 24 px AddonList gives it (Blizzard_AddOnList/AddonList.xml:73-74). The label joins the hit rect,
+-- so a click on it toggles the box.
+function AP.CreateCheckbox(parent, label)
+    local checkbox = CreateFrame("CheckButton", nil, parent, "CheckboxWithLabelTemplate")
+    checkbox:SetSize(24, 24)
+    checkbox.Text:SetFontObject(GameFontHighlight)
+    checkbox.Text:ClearAllPoints()
+    checkbox.Text:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
+    checkbox.Text:SetText(label)
+    checkbox:SetHitRectInsets(0, -(4 + checkbox.Text:GetStringWidth()), 0, 0)
+    return checkbox
+end

@@ -1,13 +1,13 @@
 local _, AP = ...
 
--- "Deals" beside Full Scan on Auctionator's Shopping tab: while it is on, only great deals glow green
--- in the buy lists, Blizzard's and Auctionator's alike. A great deal is at least 50% under its market value with a TSM
+-- "Highlight Deals", a checkbox beside Full Scan on Auctionator's Shopping tab: while ticked, only great deals glow
+-- green in the buy lists, Blizzard's and Auctionator's alike. A great deal is at least 50% under its market value with a TSM
 -- sale rate of 80% or more (AP.Trend.IsGreatDeal). The choice is saved, like a filter, and needs TSM's sale rates
 AP.GreatDeals = {}
 
-local BUTTON_LABEL = "Deals"
+local LABEL = "Highlight Deals"
 
--- Space between the button and Full Scan, the gap between related controls
+-- Space between the checkbox and Full Scan, the gap between related controls
 local GAP = 8
 
 -- Blizzard's own row highlight tinted green, the glow deal rows take in Blizzard's lists
@@ -17,7 +17,7 @@ local GLOW_ATLAS = "auctionhouse-ui-row-highlight"
 -- item and of one commodity. Auctionator makes them on or shortly after the first Auction House visit
 local LISTING_HOLDERS = { "AuctionatorShoppingFrame", "AuctionatorBuyItemFrame", "AuctionatorBuyCommodityFrame" }
 
-local button
+local checkbox
 local attached = {}
 
 -- On while the player turned it on and TSM's sale rates exist, so saved data that went missing never leaves every
@@ -79,43 +79,40 @@ local function attachListings()
     return done
 end
 
--- ===== Button =====
-local function refresh()
-    if AP.GreatDeals.IsOn() then button:LockHighlight() else button:UnlockHighlight() end
-end
-
+-- ===== Checkbox =====
 local function fillTooltip(tooltip)
-    GameTooltip_SetTitle(tooltip, BUTTON_LABEL)
-    GameTooltip_AddNormalLine(tooltip, ("Makes only great deals glow green in the buy lists: items at least %d%% below "
-        .. "their market value that TSM sees sell %d%% of the time or more. Other deals stop glowing while it is on.")
-        :format(AP.Trend.GREAT_DEAL_PCT, AP.Trend.GREAT_DEAL_SALE_RATE))
+    GameTooltip_SetTitle(tooltip, LABEL)
+    GameTooltip_AddNormalLine(tooltip, ("Ticked, only great deals glow green in every buy list: items at least %d%% below "
+        .. "their market value that TSM sees sell %d%% of the time or more. Unticked, Blizzard's buy lists glow every "
+        .. "deal past your Deal Threshold."):format(AP.Trend.GREAT_DEAL_PCT, AP.Trend.GREAT_DEAL_SALE_RATE))
     if not AP.TSM.HasSaleRates() then
         GameTooltip_AddErrorLine(tooltip, "Needs the sale rates of the TSM desktop app.")
-    else
-        GameTooltip_AddInstructionLine(tooltip, AP.GreatDeals.IsOn() and "Click to turn it off." or "Click to turn it on.")
     end
 end
 
 -- To the right of Full Scan, on the Export Results row, with its parent, so it hides whenever a buy screen covers the
--- results; true once the button and every listing painter are in place
+-- results; true once the checkbox and every listing painter are in place
 function AP.GreatDeals.Ensure()
     local listingsReady = attachListings()
-    if button then return listingsReady end
+    if checkbox then return listingsReady end
     local scanButton = AP.FullScanButton.Button()
     if not scanButton then return false end
 
-    button = AP.CreateButton(scanButton:GetParent(), BUTTON_LABEL)
-    button:SetPoint("LEFT", scanButton, "RIGHT", GAP, 0)
-    -- Off without TSM's sale rates, and the tooltip says why
-    button:SetMotionScriptsWhileDisabled(true)
-    button:SetEnabled(AP.TSM.HasSaleRates())
-    AP.AttachTooltip(button, fillTooltip)
-    button:SetScript("OnClick", function(self)
-        AP.DB().greatDeals = not AP.GreatDeals.IsOn()
-        refresh()
-        -- The open tooltip's click line follows the new state
-        if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
+    checkbox = AP.CreateCheckbox(scanButton:GetParent(), LABEL)
+    checkbox:SetPoint("LEFT", scanButton, "RIGHT", GAP, 0)
+    checkbox:SetChecked(AP.GreatDeals.IsOn())
+    -- Off without TSM's sale rates: the box disabled and its label grey, as Blizzard greys an option that cannot
+    -- apply, and the tooltip says why
+    local enabled = AP.TSM.HasSaleRates()
+    checkbox:SetEnabled(enabled)
+    if not enabled then checkbox.Text:SetTextColor(GRAY_FONT_COLOR:GetRGB()) end
+    checkbox:SetMotionScriptsWhileDisabled(true)
+    AP.AttachTooltip(checkbox, fillTooltip)
+    -- The template plays no sound, so the click plays the checkbox sounds Blizzard's options use
+    checkbox:SetScript("OnClick", function(self)
+        local checked = self:GetChecked()
+        AP.DB().greatDeals = checked
+        PlaySound(checked and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF)
     end)
-    refresh()
     return listingsReady
 end

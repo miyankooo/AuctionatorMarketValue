@@ -1,8 +1,8 @@
 local _, AP = ...
 
 -- The relative value on Blizzard's own auction lists: a coloured percentage column beside each row's price, and buy
--- list rows at least the deal threshold below the market value glow, or only great deals while the Deals button
--- is on. A frame of the addon's own repaints the visible
+-- list rows at least the deal threshold below the market value glow, or only great deals while Highlight Deals
+-- is ticked. A frame of the addon's own repaints the visible
 -- rows while the Auction House shows, so no addon code ever runs inside Blizzard's list updates, whose row data later
 -- feeds the restricted purchase calls.
 AP.AuctionHouseLists = {}
@@ -35,7 +35,7 @@ local WEAK = { __mode = "k" }
 local texts, glows = setmetatable({}, WEAK), setmetatable({}, WEAK)
 local paintedData, paintedRule, anchoredTo = setmetatable({}, WEAK), setmetatable({}, WEAK), setmetatable({}, WEAK)
 
--- The rule deal rows glow by: great deals only while the Deals button is on, else the Deal Threshold. A number,
+-- The rule deal rows glow by: great deals only while Highlight Deals is ticked, else the Deal Threshold. A number,
 -- so the per-frame check allocates nothing; thresholds start at 5, so -1 never clashes
 local GREAT_DEALS_RULE = -1
 local function dealRule()
