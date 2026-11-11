@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.1.0...v2.2.0) (2026-11-11)
+
+
+### Features
+
+* Auctionator's commodity buy screen shows a Relative column beside the price, sortable like the others ([4a5ccee](https://github.com/miyankooo/SimpleMarketValue/commit/4a5cceede2e9337dfb3abc7b22f68362de0af07b))
+* Highlight Great Deals beside Full Scan makes only great deals glow green in every buy list, items at least 50% below their market value that TSM sees sell 80% of the time or more ([2b104ea](https://github.com/miyankooo/SimpleMarketValue/commit/2b104ea619efbbe922c8727b909cd0a809384b54))
+* the first-login welcome line recommends the TSM desktop app when its prices are missing ([7cfd3c9](https://github.com/miyankooo/SimpleMarketValue/commit/7cfd3c9b3a1363b1de1d420fcfaa3e7e3f4324dc))
+* TSM's Sale Rate in item tooltips shows green from 80%, yellow from 60%, orange from 40% and red below, so you see at a glance how easily an item sells ([7ceee10](https://github.com/miyankooo/SimpleMarketValue/commit/7ceee10c6268ea41f2c4eb848438f1d975c22a7a))
+
+
+### Bug Fixes
+
+* the Relative percentage in Blizzard's search results moves from the cramped price column to the end of the name column, under its own header ([fc25eee](https://github.com/miyankooo/SimpleMarketValue/commit/fc25eeeee2eb1300e33bd02c7b6e7e1b744523e2))
+
 ## [2.1.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.0.0...v2.1.0) (2026-11-09)
 
 
