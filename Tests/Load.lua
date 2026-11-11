@@ -823,10 +823,13 @@ end
 
 local cheap, dear, thin = row({ itemKey = { itemID = 25 }, buyoutAmount = 70 }), row({ itemKey = { itemID = 25 }, buyoutAmount = 130 }), row({ itemKey = { itemID = 25 } })
 local commodity, posted = row({ itemID = 25, unitPrice = 70 }), row({ itemID = 25, unitPrice = 130 })
+local browsed = row({ itemKey = { itemID = 25 }, minPrice = 70 })
 
 -- Real frames answer nil for a missing key, the stand-ins a function, so the lists and windows not under test are false
 AuctionHouseFrame = CreateFrame("Frame")
-AuctionHouseFrame.BrowseResultsFrame, AuctionHouseFrame.CommoditiesSellFrame, AuctionHouseFrame.AuctionsFrame = false, false, false
+AuctionHouseFrame.CommoditiesSellFrame, AuctionHouseFrame.AuctionsFrame = false, false
+AuctionHouseFrame.BrowseResultsFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
+AuctionHouseFrame.BrowseResultsFrame.ItemList = list({ browsed })
 AuctionHouseFrame.CommoditiesBuyFrame = CreateFrame("Frame", nil, AuctionHouseFrame)
 AuctionHouseFrame.CommoditiesBuyFrame.ItemList = list({ commodity })
 AuctionHouseFrame.CommoditiesSellList = list({ posted })
@@ -893,6 +896,12 @@ check("the commodity column follows the price and its checkmark", commodity.font
 to, toPoint, x = anchor(posted.fontString, "RIGHT")
 check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<yellow>-7%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
 check("sell lists never glow", posted.texture == nil)
+
+to, toPoint, x = anchor(browsed.fontString, "RIGHT")
+check("the browse column ends the name column, clear of the price", browsed.fontString.text == "<green>-50%</>" and to == browsed.cells[2] and toPoint == "RIGHT" and x == -4, tostring(x))
+header = AuctionHouseFrame.BrowseResultsFrame.ItemList.HeaderContainer.fontString
+to, toPoint, x = anchor(header, "RIGHT")
+check("the browse header sits over the column", header and header.text == "Relative" and toPoint == "LEFT" and x == 196, tostring(x))
 
 -- Blizzard hands cells to other rows when it lays a list out again
 cheap.cells, dear.cells = dear.cells, cheap.cells

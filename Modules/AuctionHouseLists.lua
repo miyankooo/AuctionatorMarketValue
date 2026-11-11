@@ -13,8 +13,9 @@ AP.AuctionHouseLists = {}
 -- widest price, with the owned checkmark 6 px right of it and 16 wide, so each column takes space no text of
 -- Blizzard's reaches.
 local LISTS = {
-    -- Price first and right-aligned: the free left of the price cell
-    { "BrowseResultsFrame", "ItemList", price = "minPrice", buy = true, cell = 1, point = "LEFT", to = "LEFT", x = 4 },
+    -- Price first and right-aligned, so wide prices leave no room before the money: the end of the name column that
+    -- follows, which item names rarely reach, under its own header
+    { "BrowseResultsFrame", "ItemList", price = "minPrice", buy = true, cell = 2, point = "RIGHT", to = "RIGHT", x = -4, header = true },
     -- No headers and a narrow quantity column: right after the price and its checkmark
     { "CommoditiesBuyFrame", "ItemList", price = "unitPrice", buy = true, cell = 1, money = true, point = "LEFT", to = "RIGHT", x = 28 },
     -- Quantity left-aligned in a wide column: the end of that column, before the socket icon
