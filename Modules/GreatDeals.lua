@@ -1,11 +1,11 @@
 local _, AP = ...
 
--- "Highlight Great Deals" beside Full Scan on Auctionator's Shopping tab: while it is on, only great deals glow green
+-- "Deals" beside Full Scan on Auctionator's Shopping tab: while it is on, only great deals glow green
 -- in the buy lists, Blizzard's and Auctionator's alike. A great deal is at least 50% under its market value with a TSM
 -- sale rate of 80% or more (AP.Trend.IsGreatDeal). The choice is saved, like a filter, and needs TSM's sale rates
 AP.GreatDeals = {}
 
-local BUTTON_LABEL = "Highlight Great Deals"
+local BUTTON_LABEL = "Deals"
 
 -- Space between the button and Full Scan, the gap between related controls
 local GAP = 8

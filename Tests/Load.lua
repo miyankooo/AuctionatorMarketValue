@@ -942,7 +942,7 @@ cheap.cells, dear.cells = dear.cells, cheap.cells
 update()
 check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-50%</>")
 
--- ===== Highlight Great Deals =====
+-- ===== Deals button =====
 -- An Auctionator listing stand-in: rows on a ScrollBox under ScrollArea, as AuctionatorResultsListingTemplate has them
 local function listing(rows)
     local frame = CreateFrame("Frame")
@@ -963,7 +963,7 @@ local function paintShopping() for _, p in ipairs(listingPainters) do p.scripts.
 
 local greatButton = upvalue(AP.GreatDeals.Ensure, "button")
 local left = greatButton and greatButton.points.LEFT
-check("Highlight Great Deals sits right of Full Scan", greatButton and greatButton.text == "Highlight Great Deals"
+check("Deals sits right of Full Scan", greatButton and greatButton.text == "Deals"
     and left[1] == fullScan and left[2] == "RIGHT" and left[3] == 8)
 check("it waits for Auctionator's buy screens, with a painter on the shopping results", not ready and #listingPainters == 1)
 check("it starts off and enabled with TSM's sale rates", not AP.GreatDeals.IsOn() and greatButton:IsEnabled() and not greatButton.highlightLocked)
@@ -1060,7 +1060,7 @@ setAppData(nil)
 capture(function() slash("intro") end)
 check("without it the welcome line ends with what the TSM desktop app adds", printed[1] == welcome
     .. " Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale rates for more "
-    .. "reliable values and Highlight Great Deals.", printed[1])
+    .. "reliable values and the Deals button.", printed[1])
 setAppData(tsmValues)
 check("/smv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
 local inits = tip.inits

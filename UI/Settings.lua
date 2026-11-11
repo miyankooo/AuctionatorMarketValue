@@ -22,7 +22,7 @@ local INTRO = "Shows every auction price as a percentage of its market value: TS
     .. "days of prices.\n\n"
     .. "The percentages show in item tooltips, in Auctionator's Shopping and Selling tabs and in Blizzard's auction "
     .. "lists. Deals glow green in Blizzard's buy lists, and items worth selling in the Selling tab's bag list. "
-    .. "Highlight Great Deals on the Shopping tab lights only great deals instead. Item tooltips also judge whether "
+    .. "The Deals button on the Shopping tab lights only great deals instead. Item tooltips also judge whether "
     .. "now is a good time to buy or sell."
 
 -- The addon's page in Blizzard's Settings window, as its own canvas, copying the settings list's look

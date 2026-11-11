@@ -5,7 +5,7 @@ local _, AP = ...
 -- Entry fields the column shows and sorts by
 local TEXT_FIELD = "apTrendText"
 local SORT_FIELD = "apTrendValue"
--- Whether a buyer's row is a great deal, for the rows Highlight Great Deals lights
+-- Whether a buyer's row is a great deal, for the rows the Deals button lights
 local GREAT_DEAL_FIELD = "apGreatDeal"
 
 -- Relative value of price against the item's average, in the colours of mode

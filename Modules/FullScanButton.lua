@@ -129,7 +129,7 @@ local function AttachTip(target, text, targetPoint, relativeRegion)
     return ShowTip, Retire
 end
 
--- The button once placed, for Highlight Great Deals beside it; nil before
+-- The button once placed, for the Deals button beside it; nil before
 function AP.FullScanButton.Button()
     return scanButton
 end

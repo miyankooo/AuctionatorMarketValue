@@ -13,10 +13,10 @@ local function SurfaceLink(label)
 end
 
 -- Auctionator is a toc dependency, so the client only runs this with it. Without the TSM desktop app's data the
--- prices rest on Auctionator's scans alone and Highlight Great Deals stays off, so the line then ends with what the
+-- prices rest on Auctionator's scans alone and the Deals button stays off, so the line then ends with what the
 -- app adds, as the last step of the setup
 local TSM_HINT = "Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale "
-    .. "rates for more reliable values and Highlight Great Deals."
+    .. "rates for more reliable values and the Deals button."
 
 function AP.PrintWelcome()
     local line = "Shows how every auction price compares to its market value, in tooltips and auction lists. Open the "
