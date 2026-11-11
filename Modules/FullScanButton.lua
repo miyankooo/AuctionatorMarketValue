@@ -129,6 +129,11 @@ local function AttachTip(target, text, targetPoint, relativeRegion)
     return ShowTip, Retire
 end
 
+-- The button once placed, for Highlight Great Deals beside it; nil before
+function AP.FullScanButton.Button()
+    return scanButton
+end
+
 -- /smv intro brings the tip back now while Full Scan shows, otherwise at its next show
 function AP.FullScanButton.ShowTip()
     if showTip and scanButton:IsVisible() then showTip() end

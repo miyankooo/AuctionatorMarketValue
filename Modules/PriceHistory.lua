@@ -151,6 +151,25 @@ function AP.Trend.Relative(price, itemRef, mode)
     return AP.Trend.Colorize(pct, mode, days), pct, pct ~= nil and days >= AP.Trend.MIN_DAYS
 end
 
+-- ===== Great deals =====
+-- At least this far under the market value, in whole percent, with at least this TSM sale rate: an item that is cheap
+-- and still sells, the rows Highlight Great Deals lights
+AP.Trend.GREAT_DEAL_PCT = 50
+AP.Trend.GREAT_DEAL_SALE_RATE = 80
+
+-- A sale rate of 0.779 as the whole percent 78, the figure the tooltip shows and colours
+function AP.Trend.SalePercent(rate)
+    return rate and math.floor(rate * 100 + 0.5)
+end
+
+-- Whether a price pct whole percent off the item's market value, trusted as Relative returns it, is a great deal: far
+-- enough under it, and an item TSM sees sell often enough; never without TSM's sale rate
+function AP.Trend.IsGreatDeal(pct, trusted, itemRef)
+    if not (trusted and type(pct) == "number" and pct <= -AP.Trend.GREAT_DEAL_PCT) then return false end
+    local salePercent = AP.Trend.SalePercent(AP.TSM.SaleRate(itemRef))
+    return salePercent ~= nil and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE
+end
+
 -- ===== Item tooltip rows =====
 local function shown(frame)
     return frame and frame:IsVisible()
@@ -182,8 +201,8 @@ local SALE_RATE_COLORS = {
 
 -- "78%" for a sale rate of 0.779, green from 80%, yellow from 60%, orange from 40%, red below
 local function share(rate)
-    if not rate then return nil end
-    local pct = math.floor(rate * 100 + 0.5)
+    local pct = AP.Trend.SalePercent(rate)
+    if not pct then return nil end
     local color = RED_FONT_COLOR
     for _, band in ipairs(SALE_RATE_COLORS) do
         if pct >= band[1] then

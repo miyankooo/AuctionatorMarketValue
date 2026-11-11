@@ -5,12 +5,15 @@ local _, AP = ...
 -- Entry fields the column shows and sorts by
 local TEXT_FIELD = "apTrendText"
 local SORT_FIELD = "apTrendValue"
+-- Whether a buyer's row is a great deal, for the rows Highlight Great Deals lights
+local GREAT_DEAL_FIELD = "apGreatDeal"
 
 -- Relative value of price against the item's average, in the colours of mode
 local function setTrend(entry, price, itemRef, mode)
-    local text, pct = AP.Trend.Relative(price, itemRef, mode)
+    local text, pct, trusted = AP.Trend.Relative(price, itemRef, mode)
     entry[SORT_FIELD] = pct
     entry[TEXT_FIELD] = text or ""
+    entry[GREAT_DEAL_FIELD] = mode == AP.Trend.UP_RED and AP.Trend.IsGreatDeal(pct, trusted, itemRef) or nil
 end
 
 -- Auctionator's listings only read their layout entries, so the three providers share one

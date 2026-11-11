@@ -4,6 +4,7 @@ local _, AP = ...
 local ENSURES = {
     AP.SaleScan.Ensure,
     AP.FullScanButton.Ensure,
+    AP.GreatDeals.Ensure,
 }
 
 -- Retry until every piece is in place; Auctionator creates the host frames on or shortly after the first AH open

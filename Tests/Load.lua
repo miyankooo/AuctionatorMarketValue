@@ -50,6 +50,8 @@ function frameMethods:CreateTexture() return CreateFrame("Texture", nil, self) e
 function frameMethods:SetupMenu(fn) self.menu = fn end
 function frameMethods:SetAtlas(atlas) self.atlas = atlas end
 function frameMethods:SetTextColor(r) self.color = r end
+function frameMethods:LockHighlight() self.highlightLocked = true end
+function frameMethods:UnlockHighlight() self.highlightLocked = false end
 function frameMethods:SetPoint(point, relativeTo, relativePoint, x, y) self.points = self.points or {} self.points[point] = { relativeTo, relativePoint, x, y } end
 
 -- Blizzard's callback registry on the settings slider and checkbox: callbacks run with their owner first
@@ -939,6 +941,88 @@ check("the browse header sits over the column", header and header.text == "Relat
 cheap.cells, dear.cells = dear.cells, cheap.cells
 update()
 check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-50%</>")
+
+-- ===== Highlight Great Deals =====
+-- An Auctionator listing stand-in: rows on a ScrollBox under ScrollArea, as AuctionatorResultsListingTemplate has them
+local function listing(rows)
+    local frame = CreateFrame("Frame")
+    frame.ScrollArea = { ScrollBox = { ForEachFrame = function(_, fn) for _, r in ipairs(rows) do fn(r) end end } }
+    return frame
+end
+local shoppingRows = { row({ apGreatDeal = true }), row({}) }
+AuctionatorShoppingFrame.ResultsListing = listing(shoppingRows)
+local listingPainters = {}
+CreateFrame = function(kind, name, parent, template)
+    local frame = createFrame(kind, name, parent, template)
+    if parent == AuctionatorShoppingFrame.ResultsListing then listingPainters[#listingPainters + 1] = frame end
+    return frame
+end
+local ready = AP.GreatDeals.Ensure()
+CreateFrame = createFrame
+local function paintShopping() for _, p in ipairs(listingPainters) do p.scripts.OnUpdate(p) end end
+
+local greatButton = upvalue(AP.GreatDeals.Ensure, "button")
+local left = greatButton and greatButton.points.LEFT
+check("Highlight Great Deals sits right of Full Scan", greatButton and greatButton.text == "Highlight Great Deals"
+    and left[1] == fullScan and left[2] == "RIGHT" and left[3] == 8)
+check("it waits for Auctionator's buy screens, with a painter on the shopping results", not ready and #listingPainters == 1)
+check("it starts off and enabled with TSM's sale rates", not AP.GreatDeals.IsOn() and greatButton:IsEnabled() and not greatButton.highlightLocked)
+local instruction, errorLine
+local addInstruction, addError = GameTooltip_AddInstructionLine, GameTooltip_AddErrorLine
+GameTooltip_AddInstructionLine = function(_, text) instruction = text end
+GameTooltip_AddErrorLine = function(_, text) errorLine = text end
+greatButton.scripts.OnEnter(greatButton)
+check("its tooltip says what a click does", instruction == "Click to turn it on." and errorLine == nil, instruction)
+paintShopping()
+check("off, Auctionator's rows never glow", shoppingRows[1].texture == nil)
+
+greatButton:Click()
+check("a click turns it on, saved, with the button held lit", AP.DB().greatDeals == true and AP.GreatDeals.IsOn() and greatButton.highlightLocked)
+greatButton.scripts.OnEnter(greatButton)
+check("then the tooltip offers to turn it off", instruction == "Click to turn it off.", instruction)
+update()
+check("on, a cheap item TSM sees sell 78% of the time stops glowing in Blizzard's lists", not cheap.texture.shown)
+
+-- The same price on an item that sells 80% of the time
+tsmValues.regionSalePercent = 800
+setAppData(tsmValues)
+cheap.rowData = { itemKey = { itemID = 25 }, buyoutAmount = 70 }
+update()
+check("half price and an 80% sale rate glows in Blizzard's lists", cheap.texture.shown and dear.texture == nil)
+local shopped = { { itemKey = { itemID = 25 }, minPrice = 70 }, { itemKey = { itemID = 25 }, minPrice = 100 } }
+runNextFrame()
+AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, shopped)
+check("Auctionator's shopping rows mark only great deals", shopped[1].apGreatDeal == true and not shopped[2].apGreatDeal)
+local sold = { { itemKey = { itemID = 25 }, price = 70 } }
+AuctionatorSearchDataProviderMixin.AppendEntries(nil, sold)
+check("a seller's list marks none", sold[1].apGreatDeal == nil)
+paintShopping()
+check("on, a great deal glows in Auctionator's results with Blizzard's row highlight",
+    shoppingRows[1].texture and shoppingRows[1].texture.shown and shoppingRows[1].texture.atlas == "auctionhouse-ui-row-highlight" and shoppingRows[2].texture == nil)
+
+AuctionatorBuyItemFrame = CreateFrame("Frame")
+AuctionatorBuyItemFrame.ResultsListing = listing({})
+AuctionatorBuyCommodityFrame = CreateFrame("Frame")
+AuctionatorBuyCommodityFrame.ResultsListing = listing({})
+check("ready once Auctionator's buy screens exist", AP.GreatDeals.Ensure() == true)
+
+setAppData(nil)
+check("without TSM's sale rates it reads off", not AP.GreatDeals.IsOn())
+greatButton.scripts.OnEnter(greatButton)
+check("and the tooltip says what it needs", errorLine == "Needs the sale rates of the TSM desktop app.", errorLine)
+update()
+check("Blizzard's lists then glow by the Deal Threshold", cheap.texture.shown)
+setAppData(tsmValues)
+
+greatButton:Click()
+check("a second click turns it off", AP.DB().greatDeals == false and not greatButton.highlightLocked)
+paintShopping()
+check("off again, Auctionator's glow goes", not shoppingRows[1].texture.shown)
+update()
+check("and Blizzard's lists glow by the Deal Threshold again", cheap.texture.shown)
+GameTooltip_AddInstructionLine, GameTooltip_AddErrorLine = addInstruction, addError
+tsmValues.regionSalePercent = 779
+setAppData(tsmValues)
 
 -- ===== Tooltip colours follow the open view =====
 check("posting views use the seller's colours", AP.Trend.Mode() == AP.Trend.UP_GREEN)

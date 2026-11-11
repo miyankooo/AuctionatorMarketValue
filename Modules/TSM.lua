@@ -149,6 +149,14 @@ function AP.TSM.HouseHistorical(itemRef)
     return value("historical", itemRef)
 end
 
+-- Whether the app's data for this region carries sale rates, which great deals need
+function AP.TSM.HasSaleRates()
+    for _, block in ipairs(blocks) do
+        if block.fields.regionSalePercent then return true end
+    end
+    return false
+end
+
 -- When the TSM app last synced its data, as time(); nil without the app's data
 function AP.TSM.SyncTime()
     return lastSync
