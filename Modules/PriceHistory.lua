@@ -173,9 +173,25 @@ local function money(amount)
     return amount and GetMoneyString(amount, true)
 end
 
--- "78%" for a sale rate of 0.779
+-- How easily an item sells by TSM's sale rate: the lowest whole percent of each colour, best first; red below the last
+local SALE_RATE_COLORS = {
+    { 80, GREEN_FONT_COLOR },
+    { 60, YELLOW_FONT_COLOR },
+    { 40, ORANGE_FONT_COLOR },
+}
+
+-- "78%" for a sale rate of 0.779, green from 80%, yellow from 60%, orange from 40%, red below
 local function share(rate)
-    return rate and ("%d%%"):format(math.floor(rate * 100 + 0.5))
+    if not rate then return nil end
+    local pct = math.floor(rate * 100 + 0.5)
+    local color = RED_FONT_COLOR
+    for _, band in ipairs(SALE_RATE_COLORS) do
+        if pct >= band[1] then
+            color = band[2]
+            break
+        end
+    end
+    return color:WrapTextInColorCode(("%d%%"):format(pct))
 end
 
 -- "35" for 34.89 sales a day

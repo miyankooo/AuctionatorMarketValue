@@ -161,6 +161,7 @@ local function color(name)
 end
 HIGHLIGHT_FONT_COLOR, GREEN_FONT_COLOR, RED_FONT_COLOR = color("white"), color("green"), color("red")
 GRAY_FONT_COLOR, YELLOW_FONT_COLOR, NORMAL_FONT_COLOR, WARNING_FONT_COLOR = color("gray"), color("yellow"), color("gold"), color("warn")
+ORANGE_FONT_COLOR = color("orange")
 ITEM_QUALITY_COLORS = { [2] = { color = color("uncommon") } }
 
 
@@ -544,7 +545,7 @@ local function tooltipText()
     return table.concat(tooltipLines, " | ")
 end
 local AUCTIONATOR_ROWS = "> List Average=100c | > Market Value=<green>+20%</>"
-local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=78% | > Daily Sold=35 | > Market Value=<yellow>-14%</>"
+local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=<yellow>78%</> | > Daily Sold=35 | > Market Value=<yellow>-14%</>"
 -- 120 sits one swing under 140 in a rising market, a dip to hold; 3 days of prices assume the wide 15% swing
 local text = tooltipText()
 check("the tooltip heads Market Value and its verdict over an Auctionator block, then a TSM block",
@@ -573,7 +574,7 @@ tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
 setAppData(tsmValues)
 text = tooltipText()
 check("TSM shows whatever figures it has, daily sales rounded, and no market value means no verdict",
-    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=78% | > Daily Sold=0", text)
+    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
 historyDays = 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
@@ -585,6 +586,19 @@ text = tooltipText()
 check("no section without any figure", text == "", text)
 setAppData(tsmValues)
 historyDays = 3
+
+-- TSM's sale rate in the colour of how easily the item sells
+local rateColors = {}
+for _, percent in ipairs({ 800, 794, 600, 594, 400, 394 }) do
+    tsmValues.regionSalePercent = percent
+    setAppData(tsmValues)
+    rateColors[#rateColors + 1] = tooltipText():match("> Sale Rate=([^|]+) |")
+end
+tsmValues.regionSalePercent = 779
+setAppData(tsmValues)
+local rateScale = table.concat(rateColors, " ")
+check("the sale rate is green from 80%, yellow from 60%, orange from 40%, red below",
+    rateScale == "<green>80%</> <yellow>79%</> <yellow>60%</> <orange>59%</> <orange>40%</> <red>39%</>", rateScale)
 
 -- ===== Market value =====
 -- A price of 70: -50% against TSM's 140, -30% against Auctionator's 100
