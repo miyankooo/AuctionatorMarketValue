@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/miyankooo/SimpleMarketValue/compare/v2.2.0...v2.2.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* the great deals button beside Full Scan is now called Deals, a shorter name for the crowded Shopping tab row ([cef9ffb](https://github.com/miyankooo/SimpleMarketValue/commit/cef9ffbb23ba88290c2e1be3baecdd93b8e8d719))
+
 ## [2.2.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.1.0...v2.2.0) (2026-11-11)
 
 
