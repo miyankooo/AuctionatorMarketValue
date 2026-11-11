@@ -2,7 +2,7 @@
 
 # Simple Market Value
 
-A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what sells well. The market value is the 14-day average of Auctionator's scans or, with the TSM desktop app, TSM's region sale average. It works in Auctionator and in Blizzard's Auction House. Needs Auctionator.
+A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what sells well. The market value is the 14-day average of Auctionator's scans or, with the TSM desktop app, TSM's region sale average. It works in Auctionator and in Blizzard's Auction House. Needs Auctionator, which the CurseForge app installs with it. Works best with the TSM desktop app as well, for TSM's region sale prices and sale rates.
 
 ## Features
 

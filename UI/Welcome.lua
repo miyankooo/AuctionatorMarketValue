@@ -12,10 +12,18 @@ local function SurfaceLink(label)
     return NORMAL_FONT_COLOR:WrapTextInColorCode(LinkUtil.FormatLink(LinkTypes.AddOn, "[" .. label .. "]", addonName))
 end
 
+-- Auctionator is a toc dependency, so the client only runs this with it. Without the TSM desktop app's data the
+-- prices rest on Auctionator's scans alone and Highlight Great Deals stays off, so the line then ends with what the
+-- app adds, as the last step of the setup
+local TSM_HINT = "Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale "
+    .. "rates for more reliable values and Highlight Great Deals."
+
 function AP.PrintWelcome()
-    AP.Print("Shows how every auction price compares to its market value, in tooltips and auction lists. Open the "
+    local line = "Shows how every auction price compares to its market value, in tooltips and auction lists. Open the "
         .. SurfaceLink(SETTINGS) .. " or type /smv to set when items to sell and deals glow green. Click Full Scan "
-        .. "on Auctionator's Shopping tab first, so prices exist.")
+        .. "on Auctionator's Shopping tab first, so prices exist."
+    if not AP.TSM.HasSaleRates() then line = line .. " " .. TSM_HINT end
+    AP.Print(line)
 end
 
 -- The welcome line now, and the help tip again: at once while Full Scan shows, otherwise at its next show

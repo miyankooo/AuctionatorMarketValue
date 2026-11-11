@@ -1055,6 +1055,13 @@ capture(function() slash("frobnicate") end)
 check("an unknown word prints the hint and opens nothing", #printed == 1 and printed[1] == "<gold>[Simple Market Value]</>: Unknown command. Type /smv help for the list." and #opened == openedBefore, printed[1])
 capture(function() slash("intro") end)
 check("/smv intro prints the welcome line again", #printed == 1 and printed[1] == welcome, printed[1])
+check("with the TSM app's data the welcome line names no setup for it", welcome:find("TSM", 1, true) == nil, welcome)
+setAppData(nil)
+capture(function() slash("intro") end)
+check("without it the welcome line ends with what the TSM desktop app adds", printed[1] == welcome
+    .. " Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale rates for more "
+    .. "reliable values and Highlight Great Deals.", printed[1])
+setAppData(tsmValues)
 check("/smv intro brings the tip back at once while Full Scan shows", AP.DB().tipSeen == nil and tip.shown and tip.info ~= nil)
 local inits = tip.inits
 fullScan:Show()
