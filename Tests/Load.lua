@@ -575,8 +575,9 @@ check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
 
 -- ===== Tooltip block =====
--- Auctionator's last price 120 against its 14-day average 100; TSM's region sale average 140, a sale rate of 0.779
--- and 34.89 sold a day; outside the Auction House in the seller's colours
+-- Auctionator's last price 120 against its 14-day average 100 and against TSM's region sale average 140; TSM's
+-- market value 130 against its historical price 125; a sale rate of 0.779 and 34.89 sold a day; outside the Auction
+-- House in the seller's colours
 local showsItem = true
 GameTooltip.IsTooltipType = function() return showsItem end
 local function tooltipText()
@@ -585,13 +586,12 @@ local function tooltipText()
     tooltipPostCall(GameTooltip)
     return table.concat(tooltipLines, " | ")
 end
-local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > 14-Day Average=100c | > Relative=<green>+20%</>"
-local TREND_BLOCK = "TSM Trend | > Recent Average=130c | > Historical Average=125c | > Trend=<yellow>+4%</>"
+local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > List Average=100c | > Relative=<green>+20%</>"
 local SALES_BLOCK = "TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
-local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | " .. SALES_BLOCK .. " | " .. TREND_BLOCK
+local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > Relative=<yellow>-14%</> | > Trend=<yellow>+4%</> | " .. SALES_BLOCK
 local ASSIST_NOW = "Sale Assist=<green>Auction</>"
 local text = tooltipText()
-check("the tooltip heads Market Value and Sale Assist over the Auctionator, TSM, TSM Sales and TSM Trend sections", text == " | # Market Value | " .. ASSIST_NOW .. " | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+check("the tooltip heads Market Value and Sale Assist over the Auctionator and TSM sections, with TSM Sales last", text == " | # Market Value | " .. ASSIST_NOW .. " | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 local getItemInfo = C_Item.GetItemInfo
 C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200, 2, 7, 2 end
 text = tooltipText()
@@ -606,9 +606,9 @@ local function stackText(tooltip)
     Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 20)
     return tooltipText()
 end
-local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > 14-Day Average=2000c | > Relative=<green>+20%</>"
-    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
-    .. " | TSM Trend | > Recent Average=2600c | > Historical Average=2500c | > Trend=<yellow>+4%</>"
+local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > List Average=2000c | > Relative=<green>+20%</>"
+    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > Relative=<yellow>-14%</> | > Trend=<yellow>+4%</>"
+    .. " | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
 shiftDown = true
 text = stackText()
@@ -644,23 +644,23 @@ text = tooltipText()
 check("a last price without a 14-day average shows alone", text:find("Auctionator=<gray>2 days ago</> | > Min Buyout=120c | TSM", 1, true) ~= nil, text)
 lastPrice = nil
 text = tooltipText()
-check("without any Auctionator price the TSM sections stand alone",
-    text == " | # Market Value | Sale Assist=<green>Auction</> | " .. TSM_BLOCK, text)
+check("without any Auctionator price the TSM sections stand alone, with no price for a Relative",
+    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | > Trend=<yellow>+4%</> | " .. SALES_BLOCK, text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
 setAppData(tsmValues)
 text = tooltipText()
-check("without a sale average TSM Sales and TSM Trend show what they have, daily sales rounded",
-    text == " | # Market Value | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0 | " .. TREND_BLOCK, text)
+check("without a sale average the TSM sections show what they have, daily sales rounded",
+    text == " | # Market Value | TSM=<gray>8 hours ago</> | > Trend=<yellow>+4%</> | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
 tsmValues.historical = nil
 setAppData(tsmValues)
-check("no TSM Trend without both of its prices", tooltipText():find("Trend", 1, true) == nil)
+check("no Trend, and so no TSM section, without both of its prices", tooltipText():find("Trend", 1, true) == nil and tooltipText():find("TSM=", 1, true) == nil)
 tsmValues.historical = 125
 tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
 lastPrice, historyDays = 120, 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
 setAppData(nil)
 text = tooltipText()
-check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> 14-Day Average=100c", 1, true) ~= nil, text)
+check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 lastPrice, historyDays = nil, 0
 text = tooltipText()
 check("no block without any figure", text == "", text)
@@ -799,7 +799,7 @@ historyDays = 3
 pct, trusted = relative(70)
 check("without TSM it is Auctionator's 14-day average", pct == -30 and trusted, pct)
 text = tooltipText()
-check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> 14-Day Average=100c", 1, true) ~= nil, text)
+check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
 setAppData(tsmValues)
 
 -- ===== Colour scale =====
