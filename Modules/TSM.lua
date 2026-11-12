@@ -2,8 +2,8 @@ local _, AP = ...
 
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
 -- disabled or load in any order: the region sale average (the market value the percentages measure against wherever
--- it exists), the region sale rate and daily sales, the market value of the player's own
--- auction house, and how old each of them is. Never a single auction's price: that comes from Auctionator, which
+-- it exists), the region sale rate and daily sales, and how old
+-- they are. Never a single auction's price: that comes from Auctionator, which
 -- holds what the player saw in the Auction House. The toc loads the app's AppData.lua right after this file; it hands each block
 -- to AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil
 -- without the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads
@@ -27,8 +27,6 @@ end
 -- The blocks holding the fields read below; commodity blocks carry the house's figures for stackables per region,
 -- which TSM merges into the realm's data. On Forever they come empty, since stackables sit in the realm blocks
 local BLOCK_KEYS = {
-    AUCTIONDB_NON_COMMODITY_SCAN_STAT = "realm",
-    AUCTIONDB_COMMODITY_SCAN_STAT = "region",
     AUCTIONDB_REGION_SALE = "region",
 }
 
@@ -133,11 +131,6 @@ end
 function AP.TSM.DailySold(itemRef)
     local permille = value("regionSoldPerDay", itemRef)
     return permille and permille / 1000
-end
-
--- TSM's market value on the player's auction house, its average of the recent scans, in copper (DBMarket)
-function AP.TSM.MarketValue(itemRef)
-    return value("marketValue", itemRef)
 end
 
 -- Whether the app's data for this region carries sale rates, which great deals need
