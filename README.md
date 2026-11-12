@@ -7,6 +7,7 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 ## Features
 
 - Item tooltips show one Market Value block with every price of the item: the Vendor price, then a block per source. Auctionator: when it last saw a price, its Min Buyout, its 14-Day Average and the Relative percentage of the one against the other. TSM, with the TSM desktop app: how old its last scan of your auction house is, that scan's Min Buyout, the region Sale Average, their Relative percentage, the Sale Rate and Daily Sold. The Sale Rate shows how easily the item sells: green from 80%, yellow from 60%, orange from 40%, red below.
+- A TSM Trend section under it shows where the price on your auction house is heading: TSM's Recent Average, its Historical Average and the Trend percentage between them. A rising price favours selling now, a falling one buying now.
 - Auctionator's own Vendor and Auction tooltip lines move into that block, so the prices sit in one place. Hold Shift over a stack and every price in the block is for the whole stack, as Auctionator's stack price option sets.
 - A Relative column in Auctionator's Shopping and Selling tabs, on its buy screens for items and commodities, and in Blizzard's auction lists, where it sits beside the item name in search results.
 - Every percentage is green for a good price, yellow for a fair one and red for a poor one, by your Deal Threshold while you shop and your Sell Threshold while you sell.

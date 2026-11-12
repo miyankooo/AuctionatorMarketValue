@@ -4,7 +4,9 @@ local _, AP = ...
 -- heading: what a vendor pays, then a block per source that has figures. Auctionator: when it last saw a price, that
 -- minimum buyout, its 14-day average and the one against the other. TSM, from the TSM desktop app: how old its last
 -- scan is, that scan's minimum buyout, the region sale average, the one against the other, the sale rate and the
--- daily sales. Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since
+-- daily sales. TSM Trend, where the price on the player's auction house is heading: TSM's recent average there, its
+-- historical average and the one against the other, the trend TSM's own tooltip shows beside its market value
+-- (LibTSMApp Tooltip/Internal/AuctionDB.lua). Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since
 -- the block carries them, stack prices included: where Auctionator would price the whole stack, every price in the
 -- block is for the stack and the heading says so
 
@@ -93,7 +95,9 @@ local function addBlock(tooltip, itemLink)
     local minBuyout, saleAverage = AP.TSM.MinBuyout(itemLink), AP.TSM.SaleAverage(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
     local hasTSM = minBuyout or saleAverage or saleRate or dailySold
-    if not (vendor or lastPrice or average or hasTSM) then return end
+    local recent, historical = AP.TSM.MarketValue(itemLink), AP.TSM.Historical(itemLink)
+    local hasTrend = recent and historical
+    if not (vendor or lastPrice or average or hasTSM or hasTrend) then return end
 
     local mode = AP.Trend.Mode()
     GameTooltip_AddBlankLineToTooltip(tooltip)
@@ -118,6 +122,12 @@ local function addBlock(tooltip, itemLink)
         addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(minBuyout, saleAverage), mode))
         addRow(tooltip, "Sale Rate", share(saleRate))
         addRow(tooltip, "Daily Sold", whole(dailySold))
+    end
+    if hasTrend then
+        addLine(tooltip, "TSM Trend")
+        addRow(tooltip, "Recent Average", money(recent, stack))
+        addRow(tooltip, "Historical Average", money(historical, stack))
+        addRow(tooltip, "Trend", AP.Trend.Colorize(AP.Trend.Percent(recent, historical), mode))
     end
 
     -- Resize so the added lines render inside the tooltip frame
