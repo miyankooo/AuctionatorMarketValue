@@ -101,7 +101,10 @@ local function addBlock(tooltip, itemLink)
     local hasSales = saleRate or dailySold
     local mode = AP.Trend.Mode()
     local advice, adviceColor
-    if mode == AP.Trend.UP_GREEN then advice, adviceColor = AP.SaleAssist.Advice(itemLink) end
+    if mode == AP.Trend.UP_GREEN then
+        local data = tooltip:GetPrimaryTooltipData()
+        advice, adviceColor = AP.SaleAssist.Advice(itemLink, data and data.guid)
+    end
     if not (advice or vendor or lastPrice or average or saleAverage or marketValue or hasSales) then return end
 
     GameTooltip_AddBlankLineToTooltip(tooltip)

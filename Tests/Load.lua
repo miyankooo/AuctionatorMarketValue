@@ -175,6 +175,7 @@ Enum = {
     AuctionHouseSortOrder = { Price = 0 },
     TooltipDataType = { Item = 0 },
     ItemQuality = { Poor = 0 },
+    ItemCommodityStatus = { Unknown = 0, Item = 1, Commodity = 2 },
     GameRule = { HardcoreRuleset = 10, PvPRuleset = 213, RPRuleset = 214 },
 }
 C_GameRules = { IsGameRuleActive = function(rule) return rule == Enum.GameRule.PvPRuleset end }
@@ -209,7 +210,25 @@ C_Item = {
     GetItemInfoInstant = function() return 25, nil, nil, "INVTYPE_WEAPON", nil, 2, 7 end,
     GetItemInfo = function(link) return "Worn Sword", link, 2 end,
 }
-C_AuctionHouse = { MakeItemKey = function(itemID) return { itemID = itemID } end }
+-- The game's deposit calls, as Blizzard's sell windows use them. They answer nothing until a test fills
+-- depositAnswer, as away from an auctioneer, and note what was asked: the call, the duration and the quantity
+local depositAnswer, depositAsked = {}, nil
+C_AuctionHouse = {
+    MakeItemKey = function(itemID) return { itemID = itemID } end,
+    GetItemCommodityStatus = function() return depositAnswer.status or Enum.ItemCommodityStatus.Item end,
+    CalculateItemDeposit = function(_, duration, quantity)
+        depositAsked = "item " .. duration .. " " .. quantity
+        return depositAnswer.item
+    end,
+    CalculateCommodityDeposit = function(_, duration, quantity)
+        depositAsked = "commodity " .. duration .. " " .. quantity
+        return depositAnswer.commodity
+    end,
+}
+-- Only the item with the GUID Item-1 sits in the bags
+C_Item.GetItemLocation = function(guid) return guid == "Item-1" and { IsValid = function() return true end } or nil end
+C_Item.GetStackCount = function() return depositAnswer.stack or 1 end
+C_Item.GetItemID = function() return 25 end
 function FormatLargeNumber(n) return tostring(n) end
 function GetMoneyString(amount) return amount .. "c" end
 function IsModifiedClick() return false end
@@ -301,11 +320,6 @@ function eventBus:Fire(_, eventName, ...)
 end
 
 local config, scansStarted = { vendor_tooltips = true, shift_stack_tooltips = true, auction_duration = 24 }, { incremental = 0, replicate = 0 }
--- Auctionator's Selling tab item: it asks the game for the deposit of what it is about to post
-AuctionatorSaleItemMixin = {
-    GetDeposit = function(self) return self.deposit end,
-    GetDuration = function(self) return self.duration end,
-}
 local shiftDown = false
 function IsShiftKeyDown() return shiftDown end
 -- Auctionator's last recorded price of the item, and the lines its own tooltip code wrote
@@ -706,9 +720,9 @@ check("the sale rate is green from 80%, yellow from 60%, orange from 40%, red be
 local function item(sellPrice, quality, bindType)
     C_Item.GetItemInfo = function() return "Worn Sword", "item:25", quality or 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, sellPrice, 2, 7, bindType or 2 end
 end
-local function advice()
+local function advice(guid)
     runNextFrame()
-    local label, color = AP.SaleAssist.Advice("item:25")
+    local label, color = AP.SaleAssist.Advice("item:25", guid)
     return label and color:WrapTextInColorCode(label)
 end
 item(0)
@@ -738,17 +752,30 @@ check("the same item at a good sale rate goes to auction", advice() == "<green>A
 tsmValues.regionSale, tsmValues.regionSalePercent, lastPrice = 150, 300, 150
 setAppData(tsmValues)
 item(100)
-check("under the assumed deposit the vendor wins", advice() == "<white>Vendor</>", advice())
-local function sale(deposit, duration, quantity)
-    return { itemInfo = { itemLink = "item:25" }, deposit = deposit, duration = duration, Quantity = { GetNumber = function() return quantity end },
-        GetDuration = AuctionatorSaleItemMixin.GetDuration }
-end
-check("Auctionator's deposit passes through unchanged", AuctionatorSaleItemMixin.GetDeposit(sale(10, 2, 1)) == 10)
-check("the game's deposit teaches the rate for its duration", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
-check("and the call follows it", advice() == "<green>Auction</>", advice())
+depositAsked = nil
+check("where the game gives no answer the assumed deposit stands in, and the vendor wins", advice("Item-1") == "<white>Vendor</>", advice("Item-1"))
+check("the game was asked for the bag item at Auctionator's duration", depositAsked == "item 2 1", depositAsked)
+-- A stack of 2 in the bags costs 20 to list, 10 each
+depositAnswer = { item = 20, stack = 2 }
+check("the game's own deposit for the item in the bags decides the call", advice("Item-1") == "<green>Auction</>", advice("Item-1"))
+check("it is asked for the whole stack", depositAsked == "item 2 2", depositAsked)
+check("and it teaches the rate for its duration", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
+depositAnswer = { status = Enum.ItemCommodityStatus.Commodity, commodity = 80, stack = 2 }
+check("a commodity in the bags is asked for as a commodity", advice("Item-1") == "<white>Vendor</>" and depositAsked == "commodity 2 2", depositAsked)
+check("the newest answer moves the rate", AP.DB().depositRates[2] == 0.4, AP.DB().depositRates[2])
+depositAnswer = { commodity = 10 }
+check("an item not in the bags is asked for by its ID, for one", advice() == "<green>Auction</>" and depositAsked == "commodity 2 1", depositAsked)
+depositAnswer = {}
+check("where the game stays silent the rate it last charged stands in", advice() == "<green>Auction</>" and AP.DB().depositRates[2] == 0.1, advice())
+local calculate = C_AuctionHouse.CalculateItemDeposit
+C_AuctionHouse.CalculateItemDeposit = function() error("not at the auction house") end
+check("an error from the game falls back the same way", advice("Item-1") == "<green>Auction</>", advice("Item-1"))
+C_AuctionHouse.CalculateItemDeposit = calculate
 item(5)
-AuctionatorSaleItemMixin.GetDeposit(sale(3, 2, 1))
+depositAnswer = { item = 3 }
+advice("Item-1")
 check("a deposit on too little vendor value moves no known rate", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
+depositAnswer = {}
 item(100)
 config.auction_duration = 48
 check("the longest duration costs its own, larger deposit", advice() == "<white>Vendor</>", advice())
@@ -782,6 +809,11 @@ local sideOf = AP.Trend.Mode
 AP.Trend.Mode = function() return AP.Trend.UP_RED end
 check("a buyer's tooltip shows no Sale Assist", tooltipText():find("Sale Assist", 1, true) == nil)
 AP.Trend.Mode = sideOf
+GameTooltip.GetPrimaryTooltipData = function() return { guid = "Item-1" } end
+depositAsked = nil
+tooltipText()
+check("the tooltip hands Sale Assist the item it shows, so a bag item is asked for by its place", depositAsked == "item 2 1", depositAsked)
+GameTooltip.GetPrimaryTooltipData = nil
 C_Item.GetItemInfo = getItemInfo
 
 -- ===== Market value =====

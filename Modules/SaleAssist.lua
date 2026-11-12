@@ -18,9 +18,9 @@ AP.SaleAssist = {}
 -- addon does not model
 local CUT = 0.05
 
--- The deposit as a share of the vendor price for each of the game's three durations, 2, 8 and 24 hours. The same
--- table's DepositRate is 5; taken for every 2 hours, the vanilla rule, it gives these. The game computes deposits on
--- its servers, so this start is an assumption: the rates the game itself answers with replace it (learnDeposit)
+-- The last resort for a deposit: its share of the vendor price for each of the game's three durations, 2, 8 and 24
+-- hours. The same table's DepositRate is 5; taken for every 2 hours, the vanilla rule, it gives these. An assumption,
+-- used only until the game has answered once for the duration (gameDeposit, learnDeposit)
 local ASSUMED_DEPOSIT_RATES = { 0.05, 0.20, 0.60 }
 
 -- A deposit on less vendor value than this, in copper, is rounded too coarsely to measure a rate from
@@ -35,32 +35,59 @@ local LOW_SALE_RATE, HIGH_SALE_RATE = 0.1, 0.7
 local MIN_SALE_RATE = 0.01
 
 -- ===== Deposits =====
--- Learned rates by duration index, saved with the settings
+-- The game's own deposit for posting the item, before it is listed, and the quantity it is for: the two calls
+-- Blizzard's sell windows show their deposit from (Blizzard_AuctionHouseItemSellFrame.lua:434,
+-- Blizzard_AuctionHouseCommoditiesSellFrame.lua:86), the only place the client exposes a deposit; it exposes neither
+-- its deposit rate nor its cut. An item in the bags answers by its location, for its whole stack; any other item only
+-- by its ID, which the game answers for commodities. Nothing where the game gives no answer, as it may away from an
+-- auctioneer: Blizzard's own code only asks with the Auction House open
+local function gameDeposit(itemLink, itemGUID, duration)
+    local location = itemGUID and AP.CanAccess(itemGUID) and C_Item.GetItemLocation(itemGUID)
+    local deposit, quantity
+    if location and location:IsValid() then
+        quantity = C_Item.GetStackCount(location) or 1
+        if C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity then
+            deposit = C_AuctionHouse.CalculateCommodityDeposit(C_Item.GetItemID(location), duration, quantity)
+        else
+            deposit = C_AuctionHouse.CalculateItemDeposit(location, duration, quantity)
+        end
+    else
+        quantity = 1
+        deposit = C_AuctionHouse.CalculateCommodityDeposit(C_Item.GetItemInfoInstant(itemLink), duration, quantity)
+    end
+    if type(deposit) == "number" and deposit > 0 and type(quantity) == "number" and quantity > 0 then
+        return deposit, quantity
+    end
+    return nil
+end
+
+-- The share of the vendor price the game last charged per duration index, saved with the settings: what stands in
+-- wherever the game gives no answer for the item itself
 local function depositRates()
     local db = AP.DB()
     if type(db.depositRates) ~= "table" then db.depositRates = {} end
     return db.depositRates
 end
 
--- The game's own deposit for an item about to be posted, as a share of its vendor value. The newest measurement
--- wins, so a rule Blizzard changes is picked up; one on too little value only fills a gap
-local function learnDeposit(itemLink, duration, quantity, deposit)
-    local sellPrice = AP.Bridge.SellPrice(itemLink)
-    if not (sellPrice and type(duration) == "number" and type(quantity) == "number" and quantity > 0
-        and type(deposit) == "number" and deposit > 0) then
-        return
-    end
+-- Keeps the rate behind a deposit the game answered with. The newest answer wins, so a rule Blizzard changes is
+-- picked up; one on too little vendor value, rounded too coarsely, only fills a gap
+local function learnDeposit(sellPrice, duration, quantity, deposit)
+    if sellPrice <= 0 then return end
     local value = sellPrice * quantity
     local rates = depositRates()
     if value < MIN_MEASURED_VALUE and rates[duration] then return end
     rates[duration] = deposit / value
 end
 
-AP.Bridge.WatchDeposits(learnDeposit)
-
--- The deposit for one of the item at the duration the player posts with, in copper
-local function depositFor(sellPrice)
+-- The deposit for one of the item at the duration the player posts with, in copper: the game's own answer for the
+-- item; else the rate the game last charged for that duration; else the assumed rate
+local function depositFor(itemLink, itemGUID, sellPrice)
     local duration = AP.Bridge.PostDuration()
+    local ok, deposit, quantity = pcall(gameDeposit, itemLink, itemGUID, duration)
+    if ok and deposit then
+        learnDeposit(sellPrice, duration, quantity, deposit)
+        return deposit / quantity
+    end
     return sellPrice * (depositRates()[duration] or ASSUMED_DEPOSIT_RATES[duration])
 end
 
@@ -75,9 +102,9 @@ local VENDOR = { "Vendor", HIGHLIGHT_FONT_COLOR }
 local AUCTION = { "Auction", GREEN_FONT_COLOR }
 local AUCTION_MAYBE = { "Auction maybe", YELLOW_FONT_COLOR }
 
--- The call at one sale rate for an item a vendor pays `vendor` for, last seen at `now`, usually selling for `usual`
-local function callAt(saleRate, vendor, now, usual)
-    local deposit = depositFor(vendor)
+-- The call at one sale rate for an item a vendor pays `vendor` for, costing `deposit` to list, last seen at `now` and
+-- usually selling for `usual`
+local function callAt(saleRate, vendor, deposit, now, usual)
     local valueNow = now and auctionValue(now, deposit, saleRate)
     local valueUsual = usual and auctionValue(usual, deposit, saleRate)
     if math.max(valueNow or -math.huge, valueUsual or -math.huge) <= vendor then
@@ -92,7 +119,7 @@ local function callAt(saleRate, vendor, now, usual)
     return AUCTION
 end
 
-local function call(itemLink)
+local function call(itemLink, itemGUID)
     if not AP.Bridge.CanAuction(itemLink) then return nil end
     local vendor = AP.Bridge.SellPrice(itemLink) or 0
 
@@ -106,16 +133,18 @@ local function call(itemLink)
         return vendor > 0 and AP.Bridge.IsJunk(itemLink) and VENDOR or nil
     end
 
+    local deposit = depositFor(itemLink, itemGUID, vendor)
     local saleRate = AP.TSM.SaleRate(itemLink)
-    if saleRate then return callAt(math.max(saleRate, MIN_SALE_RATE), vendor, now, usual) end
-    local cautious = callAt(LOW_SALE_RATE, vendor, now, usual)
-    if cautious == callAt(HIGH_SALE_RATE, vendor, now, usual) then return cautious end
+    if saleRate then return callAt(math.max(saleRate, MIN_SALE_RATE), vendor, deposit, now, usual) end
+    local cautious = callAt(LOW_SALE_RATE, vendor, deposit, now, usual)
+    if cautious == callAt(HIGH_SALE_RATE, vendor, deposit, now, usual) then return cautious end
     return nil
 end
 
--- The call for an item and its colour; nil for an item that cannot be auctioned or has nothing to go by
-function AP.SaleAssist.Advice(itemLink)
-    local advice = call(itemLink)
+-- The call for an item and its colour; nil for an item that cannot be auctioned or has nothing to go by. itemGUID
+-- names the very item where the tooltip shows one from the bags, so the game can answer for it
+function AP.SaleAssist.Advice(itemLink, itemGUID)
+    local advice = call(itemLink, itemGUID)
     if advice then return advice[1], advice[2] end
     return nil
 end

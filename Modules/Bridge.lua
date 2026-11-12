@@ -153,25 +153,6 @@ function AP.Bridge.PostDuration()
     return DURATION_INDEX[Auctionator.Config.Get(Auctionator.Config.Options.AUCTION_DURATION)] or 2
 end
 
--- Auctionator's Selling tab asks the game for the deposit of the item it is about to post
--- (AuctionatorSaleItemMixin:GetDeposit, same file). onDeposit hears every answer with the item's link, the duration
--- index, the quantity and the deposit, so the addon knows the game's real deposits instead of a rule of its own. The
--- Selling tab copies the mixin when the Auction House first opens, after this swap. Auctionator's table, not
--- Blizzard's, so no taint
-function AP.Bridge.WatchDeposits(onDeposit)
-    local mixin = AuctionatorSaleItemMixin
-    local original = mixin and mixin.GetDeposit
-    if not original then return end
-    local function report(sale, deposit)
-        onDeposit(sale.itemInfo.itemLink, sale:GetDuration(), sale.Quantity:GetNumber(), deposit)
-    end
-    mixin.GetDeposit = function(self, ...)
-        local deposit = original(self, ...)
-        pcall(report, self, deposit)
-        return deposit
-    end
-end
-
 -- ===== Item tooltips =====
 -- What a vendor pays for one, only while Auctionator's vendor tooltip option is on (Source/Tooltips/Main.lua)
 function AP.Bridge.VendorPrice(itemLink)
