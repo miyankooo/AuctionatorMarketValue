@@ -6,8 +6,8 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 
 ## Features
 
-- Item tooltips show a Market Value section with a block per source. Auctionator: when it last saw a price, its List Average over 14 days and the last price's Market Value against it. TSM, with the TSM desktop app: when it last synced, the region Sale Average, Sale Rate and Daily Sold, and the same Market Value. The Sale Rate shows how easily the item sells: green from 80%, yellow from 60%, orange from 40%, red below.
-- A timing verdict beside the Market Value heading: Strong Buy or Buy in green, Fair in yellow or Overpriced in red while you shop, Sell Now in green, Fair in yellow or Hold in red while you sell. It weighs the price against how much the item's price usually swings, how well it sells and where your auction house is heading. Under 7 days of prices it assumes a wide swing, so it only makes clear calls.
+- Item tooltips show one Market Value block with every price of the item: the Vendor price, then a block per source. Auctionator: when it last saw a price, its Min Buyout, its 14-Day Average and the Relative percentage of the one against the other. TSM, with the TSM desktop app: when it last synced, the Min Buyout of its last scan, the region Sale Average, their Relative percentage, the Sale Rate and Daily Sold. The Sale Rate shows how easily the item sells: green from 80%, yellow from 60%, orange from 40%, red below.
+- Auctionator's own Vendor and Auction tooltip lines move into that block, so the prices sit in one place. Hold Shift over a stack and every price in the block is for the whole stack, as Auctionator's stack price option sets.
 - A Relative column in Auctionator's Shopping and Selling tabs, on its buy screens for items and commodities, and in Blizzard's auction lists, where it sits beside the item name in search results.
 - Every percentage is green for a good price, yellow for a fair one and red for a poor one, by your Deal Threshold while you shop and your Sell Threshold while you sell.
 - Deals glow green in Blizzard's buy lists.

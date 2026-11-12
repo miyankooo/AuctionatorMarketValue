@@ -265,8 +265,6 @@ local listeners = {}
 local historyBuilds = 0
 local historyDays = 3
 local historyAge = 0
--- Daily minimums newest first, 100 each when unset
-local historyPrices
 
 local function provider()
     return {
@@ -299,7 +297,11 @@ function eventBus:Fire(_, eventName, ...)
     return self
 end
 
-local config, scansStarted = {}, { incremental = 0, replicate = 0 }
+local config, scansStarted = { vendor_tooltips = true, shift_stack_tooltips = true }, { incremental = 0, replicate = 0 }
+local shiftDown = false
+function IsShiftKeyDown() return shiftDown end
+-- Auctionator's last recorded price of the item, and the lines its own tooltip code wrote
+local lastPrice, ownLines = 120, {}
 
 local function events(...)
     local set = {}
@@ -309,28 +311,39 @@ end
 
 Auctionator = {
     EventBus = eventBus,
-    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 } },
+    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 }, ITEM_INFO = { SELL_PRICE = 11 } },
     Utilities = {
         IsEquipment = function(classID) return classID == 2 or classID == 4 end,
         CreatePaddedMoneyString = function(amount) return amount .. "c" end,
         DBKeyFromLink = function(_, callback) callback({ "25" }) end,
         DBKeyFromBrowseResult = function() return { "25" } end,
         ItemKeyString = function(key) return tostring(key.itemID) end,
+        IsVendorable = function(itemInfo) return (itemInfo[11] or 0) > 0 end,
+    },
+    -- Auctionator's own tooltip lines, each noting the tooltip it wrote on
+    Tooltip = {
+        AddVendorTip = function(tooltip) ownLines[#ownLines + 1] = { "vendor", tooltip } end,
+        AddAuctionTip = function(tooltip) ownLines[#ownLines + 1] = { "auction", tooltip } end,
+        AddAuctionMeanTip = function(tooltip) ownLines[#ownLines + 1] = { "mean", tooltip } end,
+        AddAuctionAgeTip = function(tooltip) ownLines[#ownLines + 1] = { "age", tooltip } end,
+        AddDisenchantTip = function(tooltip) ownLines[#ownLines + 1] = { "disenchant", tooltip } end,
+        -- Auctionator's pricing of one item, with the stack size its handler read
+        ShowTipWithPricingDBKey = function(tooltip, _, _, itemCount) ownLines[#ownLines + 1] = { "priced " .. itemCount, tooltip } end,
     },
     DatabaseMixin = { SetPrice = function() end },
     Database = {
         SetPrice = function() end,
-        GetFirstPrice = function() return 120 end,
+        GetPrice = function() return lastPrice end,
         GetPriceAge = function() return historyDays > 0 and historyAge or nil end,
         GetPriceHistory = function()
             historyBuilds = historyBuilds + 1
             local today = math.floor(os.time() / 86400)
             local rows = {}
-            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = historyPrices and historyPrices[day + 1] or 100 } end
+            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = 100 } end
             return rows
         end,
     },
-    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3" } },
+    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3", VENDOR_TOOLTIPS = "vendor_tooltips", SHIFT_STACK_TOOLTIPS = "shift_stack_tooltips" } },
     State = {
         CurrentRealm = "Forever",
         IncrementalScanFrameRef = { InitiateScan = function() scansStarted.incremental = scansStarted.incremental + 1 end },
@@ -346,10 +359,10 @@ Auctionator = {
 -- ===== TSM desktop app data =====
 -- The app's AppData.lua as the app writes it: one LoadData call per block, every value packed in base 32. Item 25
 -- carries the region sale average 140 copper, a sale rate of 0.779 and 34.89 sold a day (both in thousandths), and the
--- auction house's market value 130 and long-run price 125. Another region's and another faction's blocks, an empty
+-- auction house's cheapest buyout 126 at the last scan. Another region's and another faction's blocks, an empty
 -- commodity block and a block of unread fields ride along and must be ignored
 function GetCurrentRegionName() return "EU" end
-local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, marketValue = 130, historical = 125 }
+local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, minBuyout = 126 }
 local DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
 local function base32(n)
     local text = ""
@@ -378,16 +391,16 @@ local function appData(values)
         return "{25," .. table.concat(cells, ",") .. "}"
     end
     local SALE = { "regionSale", "regionSoldPerDay", "regionSalePercent" }
+    local DATA = { "minBuyout", "numAuctions", "marketValueRecent" }
     return table.concat({
-        block("AUCTIONDB_COMMODITY_HISTORICAL", "Forever-EU", { "historical" }, ""),
+        block("AUCTIONDB_COMMODITY_DATA", "Forever-EU", DATA, ""),
         block("AUCTIONDB_REGION_SALE", "Forever-US", SALE, "{25,1,1,1}"),
         block("AUCTIONDB_REGION_SALE", "Forever-EU", SALE, "{24,5,5,5}," .. row(SALE) .. ',{"i:259891::i1",' .. packed(BIG) .. ",0,0}"),
         ('select(2, ...).LoadData("APP_INFO","Global",[[return {version="1.0.9",lastSync=%d,message={id=0,msg=""},news={}}]])')
             :format(os.time() - 15 * 60),
-        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Horde", { "historical" }, "{25,1}"),
-        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Alliance", { "historical" }, row({ "historical" })),
-        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, row({ "marketValue" })),
-        block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", { "minBuyout", "numAuctions", "marketValueRecent" }, "{25,1,1,1}"),
+        block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Horde", DATA, "{25,1,1,1}"),
+        block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", DATA, row(DATA)),
+        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, "{25,1}"),
     }, "\n")
 end
 
@@ -418,8 +431,7 @@ check("the app's last sync is read from its info block", AP.TSM.SyncTime() == os
 check("this region's sale block is read, rate and daily sales in thousandths",
     AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
     tostring(AP.TSM.SaleAverage("item:25")) .. " " .. tostring(AP.TSM.SaleRate("item:25")))
-check("this ruleset and faction's house blocks are read, not another faction's",
-    AP.TSM.HouseAverage("item:25") == 130 and AP.TSM.HouseHistorical("item:25") == 125, AP.TSM.HouseHistorical("item:25"))
+check("this ruleset and faction's scan block is read, not another faction's", AP.TSM.MinBuyout("item:25") == 126, AP.TSM.MinBuyout("item:25"))
 check("an auction item key finds the same row", AP.TSM.SaleAverage({ itemID = 25 }) == 140)
 check("a variant's row answers for its base item, a value of 2^30 or more joined from its halves",
     AP.TSM.SaleAverage("item:259891:0:0") == BIG, AP.TSM.SaleAverage("item:259891:0:0"))
@@ -428,7 +440,7 @@ check("an item without a row has no figure", AP.TSM.SaleAverage("item:26") == ni
 local gameRules = C_GameRules.IsGameRuleActive
 C_GameRules.IsGameRuleActive = function(rule) return rule == Enum.GameRule.HardcoreRuleset end
 setAppData(tsmValues)
-check("another ruleset reads none of these blocks", AP.TSM.SaleAverage("item:25") == nil and AP.TSM.HouseAverage("item:25") == nil)
+check("another ruleset reads none of these blocks", AP.TSM.SaleAverage("item:25") == nil and AP.TSM.MinBuyout("item:25") == nil)
 C_GameRules.IsGameRuleActive = gameRules
 setAppData(nil)
 check("without the app's data every figure is nil", AP.TSM.SyncTime() == nil and AP.TSM.SaleAverage("item:25") == nil)
@@ -547,21 +559,50 @@ check("an open in combat prints one gold-prefixed line", #printed == 1 and print
 check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
 
--- ===== Tooltip rows =====
--- Auctionator's last price 120 against its 14-day average 100, and against TSM's region sale average 140 at a sale
--- rate of 0.779 and 34.89 sold a day; outside the Auction House in the seller's colours
+-- ===== Tooltip block =====
+-- Auctionator's last price 120 against its 14-day average 100, and TSM's last scanned buyout 126 against its region
+-- sale average 140 at a sale rate of 0.779 and 34.89 sold a day; outside the Auction House in the seller's colours
+local showsItem = true
+GameTooltip.IsTooltipType = function() return showsItem end
 local function tooltipText()
     tooltipLines = {}
     runNextFrame()
     tooltipPostCall(GameTooltip)
     return table.concat(tooltipLines, " | ")
 end
-local AUCTIONATOR_ROWS = "> List Average=100c | > Market Value=<green>+20%</>"
-local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Sale Average=140c | > Sale Rate=<yellow>78%</> | > Daily Sold=35 | > Market Value=<yellow>-14%</>"
--- 120 sits one swing under 140 in a rising market, a dip to hold; 3 days of prices assume the wide 15% swing
+local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > 14-Day Average=100c | > Relative=<green>+20%</>"
+local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Min Buyout=126c | > Sale Average=140c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 local text = tooltipText()
-check("the tooltip heads Market Value and its verdict over an Auctionator block, then a TSM block",
-    text == " | Market Value=<red>Hold</> | Auctionator=<gray>today</> | " .. AUCTIONATOR_ROWS .. " | " .. TSM_BLOCK, text)
+check("the tooltip heads Market Value over an Auctionator block, then a TSM block", text == " | # Market Value | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+local getItemInfo = C_Item.GetItemInfo
+C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
+text = tooltipText()
+check("an item a vendor buys leads the block with its Vendor price", text == " | # Market Value | Vendor=200c | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+config.vendor_tooltips = false
+check("not while Auctionator's vendor tooltips are off", tooltipText():find("Vendor", 1, true) == nil)
+config.vendor_tooltips = true
+
+-- Stack prices, as Auctionator shows them: its pricing call carries the stack, here 20 in a bag slot
+local function stackText(tooltip)
+    ownLines = {}
+    Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 20)
+    return tooltipText()
+end
+local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > 14-Day Average=2000c | > Relative=<green>+20%</>"
+    .. " | TSM=<gray>15 minutes ago</> | > Min Buyout=2520c | > Sale Average=2800c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
+check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
+shiftDown = true
+text = stackText()
+check("with Shift every price is for the stack, and the heading says so", text == STACK_BLOCK, text)
+check("Auctionator's own pricing still runs", #ownLines == 1 and ownLines[1][1] == "priced 20")
+check("the stack is taken once, so the tooltip's next item shows single prices", tooltipText():find("Vendor=200c", 1, true) ~= nil)
+check("a stack priced on another tooltip is not this one's", stackText(SettingsTooltip):find("Vendor=200c", 1, true) ~= nil)
+config.shift_stack_tooltips = false
+check("with Auctionator's Shift option off, Shift shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
+shiftDown = false
+check("and no Shift the stack's", stackText() == STACK_BLOCK)
+config.shift_stack_tooltips = true
+C_Item.GetItemInfo = getItemInfo
 historyAge = 3
 text = tooltipText()
 check("Auctionator's age falls back to its whole scan days", text:find("Auctionator=<gray>3 days ago</>", 1, true) ~= nil, text)
@@ -578,26 +619,44 @@ for _, case in ipairs({ { 5 * 3600, "5 hours ago" }, { 3600, "1 hour ago" }, { 2
 end
 historyDays = 1
 text = tooltipText()
-check("thin history greys the Auctionator percentage", text:find("> Market Value=<gray>+20%</>", 1, true) ~= nil, text)
+check("thin history greys the Auctionator percentage", text:find("> Relative=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
-check("without Auctionator history the TSM block stands alone", text == " | Market Value=<red>Hold</> | " .. TSM_BLOCK, text)
-tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
+check("a last price without a 14-day average shows alone", text:find("Auctionator=<gray>2 days ago</> | > Min Buyout=120c | TSM", 1, true) ~= nil, text)
+lastPrice = nil
+text = tooltipText()
+check("without any Auctionator price the TSM block stands alone", text == " | # Market Value | " .. TSM_BLOCK, text)
+tsmValues.regionSale, tsmValues.regionSoldPerDay, tsmValues.minBuyout = nil, 400, nil
 setAppData(tsmValues)
 text = tooltipText()
-check("TSM shows whatever figures it has, daily sales rounded, and no market value means no verdict",
-    text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
-tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
-historyDays = 3
+check("TSM shows whatever figures it has, daily sales rounded", text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
+tsmValues.regionSale, tsmValues.regionSoldPerDay, tsmValues.minBuyout = 140, 34890, 126
+lastPrice, historyDays = 120, 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
 setAppData(nil)
 text = tooltipText()
-check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
-historyDays = 0
+check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> 14-Day Average=100c", 1, true) ~= nil, text)
+lastPrice, historyDays = nil, 0
 text = tooltipText()
-check("no section without any figure", text == "", text)
+check("no block without any figure", text == "", text)
 setAppData(tsmValues)
-historyDays = 3
+lastPrice, historyDays = 120, 3
+
+-- Auctionator's own price lines: silent on a player tooltip that shows an item, as before anywhere else
+local function ownLineNames(tooltip)
+    ownLines = {}
+    for _, name in ipairs({ "AddVendorTip", "AddAuctionTip", "AddAuctionMeanTip", "AddAuctionAgeTip", "AddDisenchantTip" }) do
+        Auctionator.Tooltip[name](tooltip, 100, "")
+    end
+    local names = {}
+    for index, line in ipairs(ownLines) do names[index] = line[2] == tooltip and line[1] or "?" end
+    return table.concat(names, " ")
+end
+check("Auctionator's price lines stay off an item tooltip, its other lines stay", ownLineNames(GameTooltip) == "disenchant", ownLineNames(GameTooltip))
+showsItem = false
+check("they run on a tooltip that lists several items", ownLineNames(GameTooltip) == "vendor auction mean age disenchant", ownLineNames(GameTooltip))
+showsItem = true
+check("and on any other tooltip", ownLineNames(SettingsTooltip) == "vendor auction mean age disenchant", ownLineNames(SettingsTooltip))
 
 -- TSM's sale rate in the colour of how easily the item sells
 local rateColors = {}
@@ -629,7 +688,7 @@ pct, trusted = relative(70)
 check("thin Auctionator history moves no glow", pct == -30 and not trusted, pct)
 historyDays = 3
 text = tooltipText()
-check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
+check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> 14-Day Average=100c", 1, true) ~= nil, text)
 setAppData(tsmValues)
 
 -- ===== Colour scale =====
@@ -647,49 +706,6 @@ check("thin history stays grey", scale(-50, buyer, 2) == "<gray>-50%</>", scale(
 AP.DB().dealThresholdPct = 5
 check("the scale follows the threshold setting", scale(-7, buyer) == "<green>-7%</>" and scale(7, buyer) == "<red>+7%</>", scale(-7, buyer))
 AP.DB().dealThresholdPct = 20
-
--- ===== Timing verdict =====
--- Eight days of steady prices (a swing at its 5% floor) against TSM's sale average 140, on an auction house trending
--- up 4% (130 against 125) where 78% of auctions sell
-local function verdict(price, mode)
-    runNextFrame()
-    local label, color = AP.Timing.Verdict(price, "item:25", mode)
-    return label and color:WrapTextInColorCode(label)
-end
-local BUY, SELL = AP.Trend.UP_RED, AP.Trend.UP_GREEN
-historyDays = 8
-check("two swings under in a rising market is a strong buy", verdict(125, BUY) == "<green>Strong Buy</>", verdict(125, BUY))
-check("one swing under is a buy", verdict(132, BUY) == "<green>Buy</>", verdict(132, BUY))
-check("within a swing is fair", verdict(135, BUY) == "<yellow>Fair</>", verdict(135, BUY))
-check("one swing over is overpriced", verdict(150, BUY) == "<red>Overpriced</>", verdict(150, BUY))
-check("one swing over sells now", verdict(150, SELL) == "<green>Sell Now</>", verdict(150, SELL))
-check("a fair price on an item that mostly sells sells now", verdict(138, SELL) == "<green>Sell Now</>", verdict(138, SELL))
-check("a dip in a rising market is a hold", verdict(125, SELL) == "<red>Hold</>", verdict(125, SELL))
-tsmValues.marketValue = 110
-setAppData(tsmValues)
-check("in a falling market a deep cut is only a buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
-check("and a dip no reason to hold", verdict(125, SELL) == "<yellow>Fair</>", verdict(125, SELL))
-tsmValues.marketValue, tsmValues.regionSalePercent = 130, 200
-setAppData(tsmValues)
-check("an item that rarely sells is no strong buy", verdict(125, BUY) == "<green>Buy</>", verdict(125, BUY))
-check("nor a quick sale at a fair price", verdict(138, SELL) == "<yellow>Fair</>", verdict(138, SELL))
-tsmValues.regionSalePercent = 779
-setAppData(tsmValues)
-historyPrices = { 70, 130, 70, 130, 70, 130, 70, 130 }
-check("on a jumpy item the same cut is noise", verdict(125, BUY) == "<yellow>Fair</>", verdict(125, BUY))
-historyPrices = nil
-historyDays = 3
-check("thin history assumes a wide swing, so the same cut is only fair, still in colour", verdict(125, BUY) == "<yellow>Fair</>", verdict(125, BUY))
-historyDays = 8
-local getItemInfo = C_Item.GetItemInfo
-C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
-check("below the vendor price is a strong buy, whatever the market", verdict(150, BUY) == "<green>Strong Buy</>", verdict(150, BUY))
-C_Item.GetItemInfo = getItemInfo
-setAppData(nil)
-check("without TSM the verdict measures against Auctionator's average", verdict(80, BUY) == "<green>Strong Buy</>" and verdict(100, SELL) == "<yellow>Fair</>", verdict(80, BUY))
-setAppData(tsmValues)
-check("no verdict without a price", verdict(nil, BUY) == nil)
-historyDays = 3
 
 -- ===== Memoised average =====
 runNextFrame()

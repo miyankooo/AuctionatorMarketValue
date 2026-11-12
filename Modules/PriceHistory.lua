@@ -1,7 +1,7 @@
 local _, AP = ...
 
 -- The relative value: a price against the item's market value, TSM's region sale average where the TSM app has
--- one, otherwise the 14-day average of Auctionator's scans. Also the item tooltip rows
+-- one, otherwise the 14-day average of Auctionator's scans
 AP.Trend = {}
 
 -- ===== Auctionator's 14-day average =====
@@ -39,25 +39,13 @@ local function interquartileMean(prices)
     return total / count
 end
 
--- Spread of the daily prices on a log scale (sample standard deviation): how far this item's price normally swings
--- from day to day, 0.1 for about 10%; nil below two days
-local function logSpread(prices)
-    if #prices < 2 then return nil end
-    local sum = 0
-    for _, price in ipairs(prices) do sum = sum + math.log(price) end
-    local mean = sum / #prices
-    local squares = 0
-    for _, price in ipairs(prices) do squares = squares + (math.log(price) - mean) ^ 2 end
-    return math.sqrt(squares / (#prices - 1))
-end
-
 -- Auctionator's day index (days since SCAN_DAY_0), as carried by each history row's rawDay
 local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key, the days it rests on and their log
--- spread; nil without usable history
+-- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without
+-- usable history
 local function averageFor(dbKey)
     local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
     local recent = {}
@@ -69,7 +57,7 @@ local function averageFor(dbKey)
         end
     end
     if #recent == 0 then return nil end
-    return { math.floor(interquartileMean(recent) + 0.5), #recent, logSpread(recent) }
+    return { math.floor(interquartileMean(recent) + 0.5), #recent }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that
@@ -87,12 +75,11 @@ local function cachedAverage(dbKey)
 end
 
 -- First key with usable history, so a suffix or item-level key measures against its own market before the pooled
--- base item, matching Auctionator's price lookups, the days of history behind it, that key and the daily prices'
--- log spread
+-- base item, matching Auctionator's price lookups, the days of history behind it and that key
 function AP.Trend.AverageFor(itemRef)
     for _, dbKey in ipairs(AP.Bridge.DBKeys(itemRef) or {}) do
         local average = cachedAverage(dbKey)
-        if average and average[1] > 0 then return average[1], average[2], dbKey, average[3] end
+        if average and average[1] > 0 then return average[1], average[2], dbKey end
     end
     return nil
 end
@@ -157,7 +144,7 @@ end
 AP.Trend.GREAT_DEAL_PCT = 50
 AP.Trend.GREAT_DEAL_SALE_RATE = 80
 
--- A sale rate of 0.779 as the whole percent 78, the figure the tooltip shows and colours
+-- A sale rate of 0.779 as the whole percent 78, the figure the tooltip shows and colours and great deals go by
 function AP.Trend.SalePercent(rate)
     return rate and math.floor(rate * 100 + 0.5)
 end
@@ -170,7 +157,7 @@ function AP.Trend.IsGreatDeal(pct, trusted, itemRef)
     return salePercent ~= nil and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE
 end
 
--- ===== Item tooltip rows =====
+-- ===== The player's side =====
 local function shown(frame)
     return frame and frame:IsVisible()
 end
@@ -187,120 +174,3 @@ function AP.Trend.Mode()
     end
     return AP.Trend.UP_RED
 end
-
-local function money(amount)
-    return amount and GetMoneyString(amount, true)
-end
-
--- How easily an item sells by TSM's sale rate: the lowest whole percent of each colour, best first; red below the last
-local SALE_RATE_COLORS = {
-    { 80, GREEN_FONT_COLOR },
-    { 60, YELLOW_FONT_COLOR },
-    { 40, ORANGE_FONT_COLOR },
-}
-
--- "78%" for a sale rate of 0.779, green from 80%, yellow from 60%, orange from 40%, red below
-local function share(rate)
-    local pct = AP.Trend.SalePercent(rate)
-    if not pct then return nil end
-    local color = RED_FONT_COLOR
-    for _, band in ipairs(SALE_RATE_COLORS) do
-        if pct >= band[1] then
-            color = band[2]
-            break
-        end
-    end
-    return color:WrapTextInColorCode(("%d%%"):format(pct))
-end
-
--- "35" for 34.89 sales a day
-local function whole(number)
-    return number and ("%d"):format(math.floor(number + 0.5))
-end
-
-local function count(amount, unit)
-    return ("%d %s%s ago"):format(amount, unit, amount == 1 and "" or "s")
-end
-
--- "12 minutes ago" for a time(): minutes within the hour, hours within the day, days after that
-local function ago(when)
-    local minutes = math.max(0, math.floor((time() - when) / 60))
-    if minutes < 60 then return count(math.max(1, minutes), "minute") end
-    if minutes < 1440 then return count(math.floor(minutes / 60), "hour") end
-    return count(math.floor(minutes / 1440), "day")
-end
-
--- When Auctionator last got a price for the key: to the minute once the addon saw it, otherwise in Auctionator's
--- whole scan days
-local function auctionatorAge(dbKey)
-    local seen = AP.Bridge.SeenTime(dbKey)
-    if seen then return ago(seen) end
-    local days = AP.Bridge.PriceAge(dbKey)
-    if days then return days == 0 and "today" or count(days, "day") end
-    return nil
-end
-
--- A source's sub-heading in white with the age of its data in grey on the right
-local function addHeading(tooltip, title, age)
-    if age then
-        GameTooltip_AddColoredDoubleLine(tooltip, title, age, HIGHLIGHT_FONT_COLOR, GRAY_FONT_COLOR, false)
-    else
-        GameTooltip_AddHighlightLine(tooltip, title)
-    end
-end
-
--- Rows sit one grid step in from their sub-heading, through the helpers' own leftOffset (SharedTooltipTemplates.lua)
-local ROW_INDENT = 8
-
--- A figure under its sub-heading; nothing without a figure
-local function addRow(tooltip, label, text)
-    if text then
-        GameTooltip_AddColoredDoubleLine(tooltip, label, text, HIGHLIGHT_FONT_COLOR, HIGHLIGHT_FONT_COLOR, false, ROW_INDENT)
-    end
-end
-
--- After a blank line, the gold heading Market Value with the timing verdict on its right, over one block per source
--- that has figures: Auctionator, with when it last saw a price, its 14-day average and the last price against it;
--- then TSM, with when its app last synced, the region sale average, sale rate and daily sales, and the same last price
--- against the sale average. Each row shows only with
--- its figure, and the lines of TSM and Auctionator themselves are left untouched
-local function addPriceRows(tooltip, itemLink)
-    local average, days, dbKey = AP.Trend.AverageFor(itemLink)
-    local saleAverage = AP.TSM.SaleAverage(itemLink)
-    local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    if not (average or saleAverage or saleRate or dailySold) then return end
-
-    local mode, lastPrice = AP.Trend.Mode(), AP.Bridge.AuctionPrice(itemLink)
-    local verdict, verdictColor = AP.Timing.Verdict(lastPrice, itemLink, mode)
-    GameTooltip_AddBlankLineToTooltip(tooltip)
-    if verdict then
-        GameTooltip_AddColoredDoubleLine(tooltip, "Market Value", verdict, NORMAL_FONT_COLOR, verdictColor, false)
-    else
-        GameTooltip_AddNormalLine(tooltip, "Market Value")
-    end
-    if average then
-        addHeading(tooltip, "Auctionator", auctionatorAge(dbKey))
-        addRow(tooltip, "List Average", money(average))
-        addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
-    end
-    if saleAverage or saleRate or dailySold then
-        local synced = AP.TSM.SyncTime()
-        addHeading(tooltip, "TSM", synced and ago(synced))
-        addRow(tooltip, "Sale Average", money(saleAverage))
-        addRow(tooltip, "Sale Rate", share(saleRate))
-        addRow(tooltip, "Daily Sold", whole(dailySold))
-        addRow(tooltip, "Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
-    end
-
-    -- Resize so the added lines render inside the tooltip frame
-    tooltip:Show()
-end
-
--- Only the two player-facing tooltips get rows
-local PLAYER_TOOLTIPS = { [GameTooltip] = true, [ItemRefTooltip] = true }
-
-TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
-    if not PLAYER_TOOLTIPS[tooltip] then return end
-    local _, itemLink = TooltipUtil.GetDisplayedItem(tooltip)
-    if itemLink then pcall(addPriceRows, tooltip, itemLink) end
-end)
