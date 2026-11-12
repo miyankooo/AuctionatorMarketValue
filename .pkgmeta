@@ -1,5 +1,9 @@
 package-as: SimpleMarketValue
 
+# The load-on-demand helper that reads the TSM desktop app's data ships as its own folder beside the addon
+move-folders:
+  SimpleMarketValue/SimpleMarketValue_TSM: SimpleMarketValue_TSM
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown

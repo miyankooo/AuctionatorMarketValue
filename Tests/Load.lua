@@ -434,13 +434,32 @@ local function appData(values)
     }, "\n")
 end
 
+-- ===== Add-ons on disk =====
+-- Which add-ons the client finds, and the load-on-demand helper's toc run as the client runs one: its files with its
+-- own name and table, the app's file from the AppHelper folder, and only once
+local addOnsOnDisk = { TradeSkillMaster_AppHelper = true, SimpleMarketValue_TSM = true }
+local loadedAddOns, loadRequests = {}, {}
+C_AddOns.DoesAddOnExist = function(name) return addOnsOnDisk[name] == true end
+C_AddOns.LoadAddOn = function(name)
+    loadRequests[#loadRequests + 1] = name
+    if loadedAddOns[name] then return true end
+    assert(name == "SimpleMarketValue_TSM" and addOnsOnDisk[name], name)
+    loadedAddOns[name] = true
+    local helper = {}
+    for line in io.lines("SimpleMarketValue_TSM/SimpleMarketValue_TSM.toc") do
+        if line == "..\\TradeSkillMaster_AppHelper\\AppData.lua" then
+            assert(load(appData(tsmValues)))(name, helper)
+        elseif line:match("%.lua$") and not line:match("^#") then
+            assert(loadfile("SimpleMarketValue_TSM/" .. line))(name, helper)
+        end
+    end
+    return true
+end
+
 -- ===== Load in toc order =====
 local function loadAddon(ns)
     for line in io.lines("SimpleMarketValue.toc") do
-        if line == "..\\TradeSkillMaster_AppHelper\\AppData.lua" then
-            -- The app's file in the AppHelper folder, run with this addon's name and table as the client does
-            assert(load(appData(tsmValues)))("SimpleMarketValue", ns)
-        elseif line:match("%.lua$") and not line:match("^#") then
+        if line:match("%.lua$") and not line:match("^#") then
             local path = line:gsub("\\", "/")
             assert(loadfile(path))("SimpleMarketValue", ns)
         end
@@ -449,6 +468,19 @@ end
 local AP = {}
 loadAddon(AP)
 check("files load in toc order", true)
+-- The client's ADDON_LOADED for this addon, as far as TSM's data goes; the rest of it runs at login below
+AP.TSM.LoadAppData()
+check("TSM's AppHelper folder on disk loads the helper, which hands the app's data over", loadedAddOns.SimpleMarketValue_TSM == true
+    and AP.TSM.SaleAverage("item:25") == 140, AP.TSM.SaleAverage("item:25"))
+local tocLines = {}
+for line in io.lines("SimpleMarketValue.toc") do tocLines[#tocLines + 1] = line end
+check("the addon's own toc names no file outside its folder, so nothing is missing without TSM",
+    not table.concat(tocLines, "\n"):find("..\\", 1, true))
+local helperToc = {}
+for line in io.lines("SimpleMarketValue_TSM/SimpleMarketValue_TSM.toc") do helperToc[#helperToc + 1] = line end
+helperToc = table.concat(helperToc, "\n")
+check("the helper loads only on demand, after the addon", helperToc:find("## LoadOnDemand: 1", 1, true) ~= nil
+    and helperToc:find("## Dependencies: SimpleMarketValue", 1, true) ~= nil and helperToc:find("## Interface: 16001", 1, true) ~= nil)
 
 -- Reloads the TSM module over the app's data as it would read after a /reload; nil means the app never synced
 local function setAppData(values)
@@ -457,6 +489,23 @@ local function setAppData(values)
 end
 
 -- ===== TSM app data =====
+-- Without TSM's AppHelper folder the helper is never asked for, so its missing file raises nothing
+do
+    local fresh = {}
+    for _, path in ipairs({ "Modules/Init.lua", "Modules/TSM.lua" }) do assert(loadfile(path))("SimpleMarketValue", fresh) end
+    addOnsOnDisk.TradeSkillMaster_AppHelper = false
+    loadRequests = {}
+    fresh.TSM.LoadAppData()
+    check("without TSM's AppHelper folder nothing is loaded and every TSM figure is nil", #loadRequests == 0 and fresh.TSM.SaleAverage("item:25") == nil)
+    addOnsOnDisk.TradeSkillMaster_AppHelper = true
+    addOnsOnDisk.SimpleMarketValue_TSM = false
+    fresh.TSM.LoadAppData()
+    check("nor where the player removed the helper", #loadRequests == 0)
+    addOnsOnDisk.SimpleMarketValue_TSM = true
+    -- The helper's global now points at this fresh table; the addon under test takes it back
+    assert(loadfile("Modules/TSM.lua"))("SimpleMarketValue", AP)
+    assert(load(appData(tsmValues)))("SimpleMarketValue", AP)
+end
 -- Within two seconds, since the clock may tick between writing the data and this check
 check("the region figures' age is when TSM built their block, not the app's last sync",
     math.abs(AP.TSM.BuiltTime("regionSale") - (os.time() - 8 * 3600)) <= 2, AP.TSM.BuiltTime("regionSale"))

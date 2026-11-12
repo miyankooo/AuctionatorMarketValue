@@ -1,13 +1,13 @@
-local _, AP = ...
+local addonName, AP = ...
 
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
 -- disabled or load in any order: the region sale average (the market value the list percentages measure against
 -- wherever it exists), the region sale rate and daily sales, TSM's market value on the player's own auction house,
 -- and how old they are. Never a single auction's price: that comes from Auctionator, which holds what the player saw
--- in the Auction House. The toc loads the app's AppData.lua right after this file; it hands each block to
--- AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil without
--- the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads them
--- (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
+-- in the Auction House. The app's AppData.lua hands each block to AP.LoadData, as TradeSkillMaster_AppHelper's own
+-- load of the same file hands it to TSM (see Loading below). Every figure is nil without the app's data for this
+-- region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads them (LibTSMService
+-- AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
 AP.TSM = {}
 
 -- ===== The player's blocks =====
@@ -160,3 +160,24 @@ function AP.TSM.BuiltTime(field)
     end
     return newest
 end
+
+-- ===== Loading =====
+-- AppData.lua lives in TSM's AppHelper folder, which players without TSM do not have, and a toc line naming a missing
+-- file raises a Lua warning at every login (seen in game on 2026-11-12). So the file is listed by a load-on-demand
+-- helper shipped with the addon, SimpleMarketValue_TSM, loaded only where the AppHelper folder exists, enabled or not
+local HELPER, APP_HELPER = "SimpleMarketValue_TSM", "TradeSkillMaster_AppHelper"
+
+-- The helper's first file hands AppData.lua's blocks to this, a global, since add-ons share no tables
+function SimpleMarketValue_LoadTSMData(tag, realmOrRegion, data)
+    AP.LoadData(tag, realmOrRegion, data)
+end
+
+-- Loads the app's data through the helper where TSM's AppHelper folder exists; once, as the client loads an add-on
+function AP.TSM.LoadAppData()
+    if C_AddOns.DoesAddOnExist(APP_HELPER) and C_AddOns.DoesAddOnExist(HELPER) then
+        C_AddOns.LoadAddOn(HELPER)
+    end
+end
+
+-- At this addon's own load, before login, so the data is there for the first tooltip and the welcome line
+EventUtil.ContinueOnAddOnLoaded(addonName, AP.TSM.LoadAppData)

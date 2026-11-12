@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: Simple Market Value TSM
+## Notes: Reads the TSM desktop app's data for Simple Market Value. Simple Market Value loads it only where TSM's AppHelper folder is installed.
+## Author: miyanko
+## Version: @project-version@
+## Category: Auctions
+## IconTexture: Interface\Icons\ability_racial_timeismoney
+## Dependencies: SimpleMarketValue
+## LoadOnDemand: 1
+
+Hand.lua
+# The TSM desktop app's data, which the TradeSkillMaster addon needs neither loaded nor enabled for
+..\TradeSkillMaster_AppHelper\AppData.lua

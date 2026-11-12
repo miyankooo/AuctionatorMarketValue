@@ -26,3 +26,4 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 4. Type `/smv`, or pick Simple Market Value in the addon menu, to set the Sell Threshold and the Deal Threshold, which decide both the colours and the glows. `/smv help` lists the commands.
 
 - For the TSM sections, install the TSM desktop app and the TradeSkillMaster addon, and log in with the addon enabled once per ruleset and faction, so the app knows which data to fetch. After that the sections show even while the TradeSkillMaster addon is disabled. New data shows after a login or /reload.
+- The download includes Simple Market Value TSM, a small helper that reads the TSM app's data. It loads only when TSM is installed, so without TSM it does nothing.
