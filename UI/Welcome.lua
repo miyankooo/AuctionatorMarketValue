@@ -12,11 +12,9 @@ local function SurfaceLink(label)
     return NORMAL_FONT_COLOR:WrapTextInColorCode(LinkUtil.FormatLink(LinkTypes.AddOn, "[" .. label .. "]", addonName))
 end
 
--- Auctionator is a toc dependency, so the client only runs this with it. Without the TSM desktop app's data the
--- prices rest on Auctionator's scans alone and Highlight Deals stays off, so the line then ends with what the
--- app adds, as the last step of the setup
-local TSM_HINT = "Works best with the TSM desktop app beside Auctionator: it adds TSM's region sale prices and sale "
-    .. "rates for more reliable values and Highlight Deals."
+-- Auctionator is a toc dependency, so the client only runs this with it, and everything works on its scans alone.
+-- Without the TSM desktop app's data the line ends with what the app would add, as an extra, never a need
+local TSM_HINT = "Optional: the TSM desktop app adds TSM's sale prices, sale rates and price trend to the tooltip."
 
 function AP.PrintWelcome()
     local line = "Shows how every auction price compares to its market value, in tooltips and auction lists. Open the "

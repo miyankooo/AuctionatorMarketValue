@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Simple Market Value
-## Notes: Shows every auction price against its market value: Auctionator's 14-day average, or TSM's region sale average from the TSM desktop app.
+## Notes: Shows every auction price against its market value, the 14-day average of Auctionator's scans. Optional: adds TSM's sale data from the TSM desktop app.
 ## Author: miyanko
 ## Version: @project-version@
 ## Category: Auctions

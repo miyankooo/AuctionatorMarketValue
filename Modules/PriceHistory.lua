@@ -1,7 +1,7 @@
 local _, AP = ...
 
--- The relative value: a price against the item's market value, TSM's region sale average where the TSM app has
--- one, otherwise the 14-day average of Auctionator's scans
+-- The relative value: a price against the item's market value, the 14-day average of Auctionator's scans. Where
+-- Auctionator has too few days of prices, TSM's region sale average fills in, for players who run the TSM app too
 AP.Trend = {}
 
 -- ===== Auctionator's 14-day average =====
@@ -124,23 +124,29 @@ function AP.Trend.Colorize(pct, mode, days)
     return color:WrapTextInColorCode(text)
 end
 
--- A price against the item's market value, in the colours of mode: TSM's region sale average where TSM has one,
--- otherwise Auctionator's 14-day average. Returns the coloured text, the percentage and whether enough data backs it
--- for a glow, which a thin Auctionator history does not; nil text without a market value
-function AP.Trend.Relative(price, itemRef, mode)
-    local saleAverage = AP.TSM.SaleAverage(itemRef)
-    if saleAverage then
-        local pct = AP.Trend.Percent(price, saleAverage)
-        return AP.Trend.Colorize(pct, mode), pct, pct ~= nil
-    end
+-- The item's market value and the days of Auctionator history behind it: Auctionator's 14-day average once enough
+-- days back it; before that TSM's region sale average where the TSM app has one, with no days; else the thin
+-- Auctionator average. So TSM never changes a figure Auctionator stands behind, it only fills the gaps
+function AP.Trend.MarketValue(itemRef)
     local average, days = AP.Trend.AverageFor(itemRef)
-    local pct = AP.Trend.Percent(price, average)
-    return AP.Trend.Colorize(pct, mode, days), pct, pct ~= nil and days >= AP.Trend.MIN_DAYS
+    if average and days >= AP.Trend.MIN_DAYS then return average, days end
+    local saleAverage = AP.TSM.SaleAverage(itemRef)
+    if saleAverage then return saleAverage, nil end
+    return average, days
+end
+
+-- A price against the item's market value, in the colours of mode. Returns the coloured text, the percentage and
+-- whether enough data backs it for a glow, which a thin Auctionator history does not; nil text without a market value
+function AP.Trend.Relative(price, itemRef, mode)
+    local value, days = AP.Trend.MarketValue(itemRef)
+    local pct = AP.Trend.Percent(price, value)
+    return AP.Trend.Colorize(pct, mode, days), pct, pct ~= nil and (days == nil or days >= AP.Trend.MIN_DAYS)
 end
 
 -- ===== Great deals =====
--- At least this far under every average, in whole percent, with at least this TSM sale rate: an item that is cheap
--- by the region's sales and on the player's own auction house, and still sells; the rows Highlight Deals lights
+-- At least this far under every average, in whole percent: an item that is cheap on the player's own auction house
+-- and, with the TSM app, by the region's sales too. With the app it must also sell this often by TSM's sale rate.
+-- The rows Highlight Deals lights
 AP.Trend.GREAT_DEAL_PCT = 50
 AP.Trend.GREAT_DEAL_SALE_RATE = 80
 
@@ -149,13 +155,15 @@ function AP.Trend.SalePercent(rate)
     return rate and math.floor(rate * 100 + 0.5)
 end
 
--- Whether price is a great deal for the item: an item TSM sees sell often enough, priced far enough under each
--- average the addon has for it. TSM's region sale average is what it sells for across the region; Auctionator's
--- 14-day average, once enough days back it, is what it lists for on the player's own auction house, so a price that
--- is only normal there is no deal. Never without TSM's sale rate and at least one average
+-- Whether price is a great deal for the item: far enough under each average the addon has for it. Auctionator's
+-- 14-day average, once enough days back it, is what it lists for on the player's own auction house; TSM's region
+-- sale average is what it sells for across the region. At least one of the two. With the TSM app's sale rates
+-- loaded, the item must also sell often enough; Auctionator alone knows no sale rate, so it asks for none
 function AP.Trend.IsGreatDeal(price, itemRef)
-    local salePercent = AP.Trend.SalePercent(AP.TSM.SaleRate(itemRef))
-    if not (salePercent and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE) then return false end
+    if AP.TSM.HasSaleRates() then
+        local salePercent = AP.Trend.SalePercent(AP.TSM.SaleRate(itemRef))
+        if not (salePercent and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE) then return false end
+    end
 
     local salePct = AP.Trend.Percent(price, AP.TSM.SaleAverage(itemRef))
     if salePct and salePct > -AP.Trend.GREAT_DEAL_PCT then return false end

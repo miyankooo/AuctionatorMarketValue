@@ -3,7 +3,7 @@ local _, AP = ...
 -- Sale Assist: where and when to sell an item, as one call. It weighs what a vendor pays at once against what an
 -- auction is expected to bring after the auction house's cut and the deposits lost on listings that do not sell.
 --
--- The model. Listing at price P sells with probability s, TSM's sale rate. A sale pays P less the cut and returns
+-- The model. Listing at price P sells with probability s, TSM's sale rate where the TSM app gives one. A sale pays P less the cut and returns
 -- the deposit D; a listing that runs out returns the item and keeps the deposit. A seller who relists until it sells
 -- loses (1 - s) / s deposits on average for each sale, so an auction is worth
 --     P * (1 - cut) - D * (1 - s) / s
@@ -26,9 +26,10 @@ local ASSUMED_DEPOSIT_RATES = { 0.05, 0.20, 0.60 }
 -- A deposit on less vendor value than this, in copper, is rounded too coarsely to measure a rate from
 local MIN_MEASURED_VALUE = 100
 
--- Without TSM's sale rate an item counts as selling this often, near the middle of the region's sale rates (the
--- median was 34% on EU on 2026-11-12); an assumption
-local TYPICAL_SALE_RATE = 0.3
+-- Without TSM's sale rate the call must hold for an item that sells badly and for one that sells well, the tenth and
+-- ninetieth percent of the region's sale rates (10% and 73.5% on EU on 2026-11-12). Where the two disagree, how well
+-- the item sells decides, and nobody knows it, so there is no call
+local LOW_SALE_RATE, HIGH_SALE_RATE = 0.1, 0.7
 
 -- The lowest sale rate reckoned with, so an item TSM saw sell once in a thousand listings does not divide by nothing
 local MIN_SALE_RATE = 0.01
@@ -74,24 +75,8 @@ local VENDOR = { "Vendor", HIGHLIGHT_FONT_COLOR }
 local AUCTION = { "Auction", GREEN_FONT_COLOR }
 local AUCTION_MAYBE = { "Auction maybe", YELLOW_FONT_COLOR }
 
-local function call(itemLink)
-    if not AP.Bridge.CanAuction(itemLink) then return nil end
-    local vendor = AP.Bridge.SellPrice(itemLink) or 0
-
-    -- Two prices an auction could fetch: the cheapest the player last saw, and the usual one, the market value the
-    -- percentages measure against
-    local now = AP.Bridge.AuctionPrice(itemLink)
-    local usual = AP.TSM.SaleAverage(itemLink)
-    if not usual then
-        local average, days = AP.Trend.AverageFor(itemLink)
-        usual = average and days >= AP.Trend.MIN_DAYS and average or nil
-    end
-    if not (now or usual) then
-        -- Nothing known about its auctions: only an item made for the vendor gets a call
-        return vendor > 0 and AP.Bridge.IsJunk(itemLink) and VENDOR or nil
-    end
-
-    local saleRate = math.max(AP.TSM.SaleRate(itemLink) or TYPICAL_SALE_RATE, MIN_SALE_RATE)
+-- The call at one sale rate for an item a vendor pays `vendor` for, last seen at `now`, usually selling for `usual`
+local function callAt(saleRate, vendor, now, usual)
     local deposit = depositFor(vendor)
     local valueNow = now and auctionValue(now, deposit, saleRate)
     local valueUsual = usual and auctionValue(usual, deposit, saleRate)
@@ -105,6 +90,27 @@ local function call(itemLink)
         return AUCTION_MAYBE
     end
     return AUCTION
+end
+
+local function call(itemLink)
+    if not AP.Bridge.CanAuction(itemLink) then return nil end
+    local vendor = AP.Bridge.SellPrice(itemLink) or 0
+
+    -- Two prices an auction could fetch: the cheapest the player last saw, and the usual one, the market value the
+    -- percentages measure against, once enough data backs it
+    local now = AP.Bridge.AuctionPrice(itemLink)
+    local usual, days = AP.Trend.MarketValue(itemLink)
+    if days and days < AP.Trend.MIN_DAYS then usual = nil end
+    if not (now or usual) then
+        -- Nothing known about its auctions: only an item made for the vendor gets a call
+        return vendor > 0 and AP.Bridge.IsJunk(itemLink) and VENDOR or nil
+    end
+
+    local saleRate = AP.TSM.SaleRate(itemLink)
+    if saleRate then return callAt(math.max(saleRate, MIN_SALE_RATE), vendor, now, usual) end
+    local cautious = callAt(LOW_SALE_RATE, vendor, now, usual)
+    if cautious == callAt(HIGH_SALE_RATE, vendor, now, usual) then return cautious end
+    return nil
 end
 
 -- The call for an item and its colour; nil for an item that cannot be auctioned or has nothing to go by

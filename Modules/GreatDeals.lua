@@ -1,8 +1,9 @@
 local _, AP = ...
 
 -- "Highlight Deals", a checkbox beside Full Scan on Auctionator's Shopping tab: while ticked, only great deals glow
--- green in the buy lists, Blizzard's and Auctionator's alike. A great deal is at least 50% under both TSM's sale
--- average and Auctionator's 14-day average with a TSM sale rate of 80% or more (AP.Trend.IsGreatDeal). The choice is saved, like a filter, and needs TSM's sale rates
+-- green in the buy lists, Blizzard's and Auctionator's alike. A great deal is at least 50% under Auctionator's 14-day
+-- average; with the TSM app also under TSM's sale average, at a TSM sale rate of 80% or more
+-- (AP.Trend.IsGreatDeal). The choice is saved, like a filter
 AP.GreatDeals = {}
 
 local LABEL = "Highlight Deals"
@@ -20,10 +21,8 @@ local LISTING_HOLDERS = { "AuctionatorShoppingFrame", "AuctionatorBuyItemFrame",
 local checkbox
 local attached = {}
 
--- On while the player turned it on and TSM's sale rates exist, so saved data that went missing never leaves every
--- list without a glow
 function AP.GreatDeals.IsOn()
-    return AP.DB().greatDeals == true and AP.TSM.HasSaleRates()
+    return AP.DB().greatDeals == true
 end
 
 -- ===== Auctionator's rows =====
@@ -82,13 +81,15 @@ end
 -- ===== Checkbox =====
 local function fillTooltip(tooltip)
     GameTooltip_SetTitle(tooltip, LABEL)
-    GameTooltip_AddNormalLine(tooltip, ("Ticked, only great deals glow green in every buy list: items priced at least "
-        .. "%d%% below both TSM's sale average and Auctionator's 14-day average, that TSM sees sell %d%% of the time or "
-        .. "more. Unticked, Blizzard's buy lists glow every deal past your Deal Threshold.")
-        :format(AP.Trend.GREAT_DEAL_PCT, AP.Trend.GREAT_DEAL_SALE_RATE))
-    if not AP.TSM.HasSaleRates() then
-        GameTooltip_AddErrorLine(tooltip, "Needs the sale rates of the TSM desktop app.")
+    local rule
+    if AP.TSM.HasSaleRates() then
+        rule = ("items priced at least %d%% below both Auctionator's 14-day average and TSM's sale average, that TSM "
+            .. "sees sell %d%% of the time or more"):format(AP.Trend.GREAT_DEAL_PCT, AP.Trend.GREAT_DEAL_SALE_RATE)
+    else
+        rule = ("items priced at least %d%% below Auctionator's 14-day average"):format(AP.Trend.GREAT_DEAL_PCT)
     end
+    GameTooltip_AddNormalLine(tooltip, "Ticked, only great deals glow green in every buy list: " .. rule
+        .. ". Unticked, Blizzard's buy lists glow every deal past your Deal Threshold.")
 end
 
 -- To the right of Full Scan, on the Export Results row, with its parent, so it hides whenever a buy screen covers the
@@ -102,12 +103,6 @@ function AP.GreatDeals.Ensure()
     checkbox = AP.CreateCheckbox(scanButton:GetParent(), LABEL)
     checkbox:SetPoint("LEFT", scanButton, "RIGHT", GAP, 0)
     checkbox:SetChecked(AP.GreatDeals.IsOn())
-    -- Off without TSM's sale rates: the box disabled and its label grey, as Blizzard greys an option that cannot
-    -- apply, and the tooltip says why
-    local enabled = AP.TSM.HasSaleRates()
-    checkbox:SetEnabled(enabled)
-    if not enabled then checkbox.Text:SetTextColor(GRAY_FONT_COLOR:GetRGB()) end
-    checkbox:SetMotionScriptsWhileDisabled(true)
     AP.AttachTooltip(checkbox, fillTooltip)
     -- The template plays no sound, so the click plays the checkbox sounds Blizzard's options use
     checkbox:SetScript("OnClick", function(self)
