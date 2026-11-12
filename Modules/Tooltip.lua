@@ -3,13 +3,13 @@ local _, AP = ...
 -- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
 -- heading: Sale Assist, the call where and when to sell, while the player is on the selling side; what a vendor
 -- pays; then a section per source that has figures.
--- Auctionator: when it last saw a price, that minimum buyout, the average of its listings over 14 days and the one
--- against the other.
--- TSM, from the TSM desktop app: how old its region figures are, the region sale average and the same minimum buyout
--- against it.
+-- Auctionator: when it last saw a price, that minimum buyout, its average price over 14 days and the minimum
+-- buyout against it.
+-- TSM, from the TSM desktop app: how old its figures are, the region sale average and TSM's market value on the
+-- player's auction house, each followed by the same minimum buyout against it.
 -- TSM Sales, last: the region sale rate and daily sales.
--- The two sections name the same kind of figure the same way: an average, then Relative, Auctionator's minimum
--- buyout against that average. It is the price the player sees in the auction listing, so both start from it.
+-- Every percentage starts from Auctionator's minimum buyout, the price the player sees in the auction listing, and
+-- its label names the figure it measures against, so the three read apart at a glance.
 -- Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since the block carries
 -- them, stack prices included: where Auctionator would price the whole stack, every price in the block is for the
 -- stack and the heading says so
@@ -96,13 +96,13 @@ local function addBlock(tooltip, itemLink)
     local vendor = AP.Bridge.VendorPrice(itemLink)
     local lastPrice, priceKey = AP.Bridge.AuctionPrice(itemLink)
     local average, days, averageKey = AP.Trend.AverageFor(itemLink)
-    local saleAverage = AP.TSM.SaleAverage(itemLink)
+    local saleAverage, marketValue = AP.TSM.SaleAverage(itemLink), AP.TSM.MarketValue(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
     local hasSales = saleRate or dailySold
     local mode = AP.Trend.Mode()
     local advice, adviceColor
     if mode == AP.Trend.UP_GREEN then advice, adviceColor = AP.SaleAssist.Advice(itemLink) end
-    if not (advice or vendor or lastPrice or average or saleAverage or hasSales) then return end
+    if not (advice or vendor or lastPrice or average or saleAverage or marketValue or hasSales) then return end
 
     GameTooltip_AddBlankLineToTooltip(tooltip)
     if stack then
@@ -115,14 +115,17 @@ local function addBlock(tooltip, itemLink)
     if lastPrice or average then
         addLine(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey), GRAY_FONT_COLOR)
         addRow(tooltip, "Min Buyout", money(lastPrice, stack))
-        addRow(tooltip, "List Average", money(average, stack))
-        addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
+        addRow(tooltip, "Average Price", money(average, stack))
+        addRow(tooltip, "vs Average Price", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if saleAverage then
-        local built = AP.TSM.BuiltTime("regionSale")
+    if saleAverage or marketValue then
+        -- The age of the region's figures; of the auction house scan for an item with a market value alone
+        local built = AP.TSM.BuiltTime(saleAverage and "regionSale" or "marketValue")
         addLine(tooltip, "TSM", built and ago(built), GRAY_FONT_COLOR)
         addRow(tooltip, "Sale Average", money(saleAverage, stack))
-        addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
+        addRow(tooltip, "vs Sale Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
+        addRow(tooltip, "Market Value", money(marketValue, stack))
+        addRow(tooltip, "vs Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, marketValue), mode))
     end
     if hasSales then
         addLine(tooltip, "TSM Sales")

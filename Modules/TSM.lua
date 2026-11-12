@@ -1,13 +1,13 @@
 local _, AP = ...
 
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
--- disabled or load in any order: the region sale average (the market value the percentages measure against wherever
--- it exists), the region sale rate and daily sales, and how old
--- they are. Never a single auction's price: that comes from Auctionator, which
--- holds what the player saw in the Auction House. The toc loads the app's AppData.lua right after this file; it hands each block
--- to AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil
--- without the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads
--- them (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
+-- disabled or load in any order: the region sale average (the market value the list percentages measure against
+-- wherever it exists), the region sale rate and daily sales, TSM's market value on the player's own auction house,
+-- and how old they are. Never a single auction's price: that comes from Auctionator, which holds what the player saw
+-- in the Auction House. The toc loads the app's AppData.lua right after this file; it hands each block to
+-- AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil without
+-- the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads them
+-- (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
 AP.TSM = {}
 
 -- ===== The player's blocks =====
@@ -27,6 +27,8 @@ end
 -- The blocks holding the fields read below; commodity blocks carry the house's figures for stackables per region,
 -- which TSM merges into the realm's data. On Forever they come empty, since stackables sit in the realm blocks
 local BLOCK_KEYS = {
+    AUCTIONDB_NON_COMMODITY_SCAN_STAT = "realm",
+    AUCTIONDB_COMMODITY_SCAN_STAT = "region",
     AUCTIONDB_REGION_SALE = "region",
 }
 
@@ -133,6 +135,13 @@ function AP.TSM.DailySold(itemRef)
     return permille and permille / 1000
 end
 
+-- TSM's market value on the player's own auction house, in copper (DBMarket): by TSM's documentation a weighted
+-- 14-day average of the auctions listed there, favouring the last 3 days; what the item is listed for, not what it
+-- sells for
+function AP.TSM.MarketValue(itemRef)
+    return value("marketValue", itemRef)
+end
+
 -- Whether the app's data for this region carries sale rates, which great deals need
 function AP.TSM.HasSaleRates()
     for _, block in ipairs(blocks) do
@@ -141,8 +150,9 @@ function AP.TSM.HasSaleRates()
     return false
 end
 
--- When TSM built the data behind a field, as time(): the region's figures for regionSale, about daily. Not when the
--- app last synced, which says only that the app looked for news. nil without that data
+-- When TSM built the data behind a field, as time(): the region's figures for regionSale, about daily, the scan of
+-- the player's auction house for marketValue, about hourly. Not when the app last synced, which says only that the
+-- app looked for news. nil without that data
 function AP.TSM.BuiltTime(field)
     local newest
     for _, block in ipairs(blocks) do

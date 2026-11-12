@@ -4,39 +4,23 @@ local _, AP = ...
 -- for players who run the TSM app too, TSM's region sale average wherever TSM has one
 AP.Trend = {}
 
--- ===== Auctionator's 14-day average =====
+-- ===== Auctionator's average price =====
 -- Two weeks of daily minimums: long enough to smooth single scans, short enough to follow the market
 local HISTORY_WINDOW_DAYS = 14
-
--- Below this a quartile trim is too thin to stop same-side freak days, the median is safer
-local MIN_TRIM_SAMPLES = 8
 
 -- An average built from fewer days of history says little, so its percentage shows in grey and moves no glow
 AP.Trend.MIN_DAYS = 3
 
-local function medianOf(sorted)
-    local count = #sorted
+-- The middle of the daily prices, the mean of the two middle ones for an even count. One rule for any number of days,
+-- and a dump day or a thin-supply day cannot move it
+local function median(prices)
+    table.sort(prices)
+    local count = #prices
     local mid = math.floor(count / 2)
     if count % 2 == 0 then
-        return (sorted[mid] + sorted[mid + 1]) / 2
+        return (prices[mid] + prices[mid + 1]) / 2
     end
-    return sorted[mid + 1]
-end
-
--- Interquartile mean of daily prices: dropping the cheapest and priciest quarter removes dump days and thin-supply days by construction, with no tuning constants to misjudge a market
-local function interquartileMean(prices)
-    table.sort(prices)
-    if #prices < MIN_TRIM_SAMPLES then
-        return medianOf(prices)
-    end
-
-    local trim = math.floor(#prices * 0.25)
-    local total, count = 0, 0
-    for index = trim + 1, #prices - trim do
-        total = total + prices[index]
-        count = count + 1
-    end
-    return total / count
+    return prices[mid + 1]
 end
 
 -- Auctionator's day index (days since SCAN_DAY_0), as carried by each history row's rawDay
@@ -44,8 +28,8 @@ local function currentScanDay()
     return math.floor((time() - Auctionator.Constants.SCAN_DAY_0) / 86400)
 end
 
--- Average minimum buyout inside the history window for one price-database key and the days it rests on; nil without
--- usable history
+-- The average price for one price-database key, the median of its daily minimum buyouts inside the history window,
+-- and the days it rests on; nil without usable history
 local function averageFor(dbKey)
     local cutoffDay = currentScanDay() - HISTORY_WINDOW_DAYS
     local recent = {}
@@ -57,7 +41,7 @@ local function averageFor(dbKey)
         end
     end
     if #recent == 0 then return nil end
-    return { math.floor(interquartileMean(recent) + 0.5), #recent }
+    return { math.floor(median(recent) + 0.5), #recent }
 end
 
 -- Averages of this frame, false for keys without history. A listing decorates every row of one item in one pass, so they share one history build. Shortcut: cleared next frame, so prices recorded later never read stale, but distinct items still build their history each time; a cache cleared on Auctionator's price writes would cover that

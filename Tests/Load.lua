@@ -266,6 +266,8 @@ local listeners = {}
 local historyBuilds = 0
 local historyDays = 3
 local historyAge = 0
+-- Daily minimums newest first, 100 each when unset
+local historyPrices
 
 local function provider()
     return {
@@ -347,7 +349,7 @@ Auctionator = {
             historyBuilds = historyBuilds + 1
             local today = math.floor(os.time() / 86400)
             local rows = {}
-            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = 100 } end
+            for day = 0, historyDays - 1 do rows[#rows + 1] = { rawDay = today - historyAge - day, minSeen = historyPrices and historyPrices[day + 1] or 100 } end
             return rows
         end,
     },
@@ -367,10 +369,10 @@ Auctionator = {
 -- ===== TSM desktop app data =====
 -- The app's AppData.lua as the app writes it: one LoadData call per block, every value packed in base 32. Item 25
 -- carries the region sale average 140 copper, a sale rate of 0.779 and 34.89 sold a day (both in thousandths), and the
--- auction house's market value 130 and historical price 125. Another region's and another faction's blocks, an empty
+-- auction house's market value 130. Another region's and another faction's blocks, an empty
 -- commodity block and blocks of unread fields, TSM's own scan prices among them, ride along and must be ignored
 function GetCurrentRegionName() return "EU" end
-local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, marketValue = 130, historical = 125 }
+local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, marketValue = 130 }
 local DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
 local function base32(n)
     local text = ""
@@ -410,6 +412,7 @@ local function appData(values)
             :format(os.time() - 15 * 60),
         block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Horde", DATA, "{25,1,1,1}"),
         block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", DATA, "{25,1,1,1}"),
+        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Horde", { "marketValue" }, "{25,1}"),
         block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, row({ "marketValue" })),
         block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Horde", { "historical" }, "{25,1}"),
         block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Alliance", { "historical" }, row({ "historical" })),
@@ -440,8 +443,10 @@ local function setAppData(values)
 end
 
 -- ===== TSM app data =====
+-- Within two seconds, since the clock may tick between writing the data and this check
 check("the region figures' age is when TSM built their block, not the app's last sync",
-    AP.TSM.BuiltTime("regionSale") == os.time() - 8 * 3600, AP.TSM.BuiltTime("regionSale"))
+    math.abs(AP.TSM.BuiltTime("regionSale") - (os.time() - 8 * 3600)) <= 2, AP.TSM.BuiltTime("regionSale"))
+check("this ruleset and faction's market value is read, not another faction's", AP.TSM.MarketValue("item:25") == 130, AP.TSM.MarketValue("item:25"))
 check("TSM's own scan prices are not read", AP.TSM.BuiltTime("minBuyout") == nil)
 check("this region's sale block is read, rate and daily sales in thousandths",
     AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
@@ -585,9 +590,9 @@ local function tooltipText()
     tooltipPostCall(GameTooltip)
     return table.concat(tooltipLines, " | ")
 end
-local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > List Average=100c | > Relative=<green>+20%</>"
+local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > Average Price=100c | > vs Average Price=<green>+20%</>"
 local SALES_BLOCK = "TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
-local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > Relative=<yellow>-14%</> | " .. SALES_BLOCK
+local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > vs Sale Average=<yellow>-14%</> | > Market Value=130c | > vs Market Value=<yellow>-8%</> | " .. SALES_BLOCK
 local ASSIST_NOW = "Sale Assist=<green>Auction</>"
 local text = tooltipText()
 check("the tooltip heads Market Value and Sale Assist over the Auctionator and TSM sections, with TSM Sales last", text == " | # Market Value | " .. ASSIST_NOW .. " | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
@@ -605,8 +610,8 @@ local function stackText(tooltip)
     Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 20)
     return tooltipText()
 end
-local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > List Average=2000c | > Relative=<green>+20%</>"
-    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > Relative=<yellow>-14%</>"
+local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > Average Price=2000c | > vs Average Price=<green>+20%</>"
+    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > vs Sale Average=<yellow>-14%</> | > Market Value=2600c | > vs Market Value=<yellow>-8%</>"
     .. " | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
 shiftDown = true
@@ -637,25 +642,29 @@ for _, case in ipairs({ { 5 * 3600, "5 hours ago" }, { 3600, "1 hour ago" }, { 2
 end
 historyDays = 1
 text = tooltipText()
-check("thin history greys the Auctionator percentage", text:find("> Relative=<gray>+20%</>", 1, true) ~= nil, text)
+check("thin history greys the Auctionator percentage", text:find("> vs Average Price=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
 check("a last price without a 14-day average shows alone", text:find("Auctionator=<gray>2 days ago</> | > Min Buyout=120c | TSM", 1, true) ~= nil, text)
 lastPrice = nil
 text = tooltipText()
-check("without any Auctionator price the TSM sections stand alone, with no price for a Relative",
-    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | " .. SALES_BLOCK, text)
+check("without any Auctionator price the TSM sections stand alone, with no price to compare",
+    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | > Market Value=130c | " .. SALES_BLOCK, text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
 setAppData(tsmValues)
 text = tooltipText()
-check("without a sale average the TSM sections show what they have, daily sales rounded",
-    text == " | # Market Value | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
+check("without a sale average the TSM section shows the market value under the age of its scan, daily sales rounded",
+    text == " | # Market Value | TSM=<gray>1 hour ago</> | > Market Value=130c | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
+tsmValues.marketValue = nil
+setAppData(tsmValues)
+check("no TSM section without a sale average or a market value", tooltipText():find("TSM=", 1, true) == nil)
+tsmValues.marketValue = 130
 tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
 lastPrice, historyDays = 120, 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
 setAppData(nil)
 text = tooltipText()
-check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
+check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> Average Price=100c", 1, true) ~= nil, text)
 lastPrice, historyDays = nil, 0
 text = tooltipText()
 check("no block without any figure", text == "", text)
@@ -794,7 +803,7 @@ historyDays = 3
 pct, trusted = relative(70)
 check("without TSM it is Auctionator's 14-day average", pct == -30 and trusted, pct)
 text = tooltipText()
-check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> List Average=100c", 1, true) ~= nil, text)
+check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> Average Price=100c", 1, true) ~= nil, text)
 setAppData(tsmValues)
 
 -- ===== Colour scale =====
@@ -812,6 +821,16 @@ check("thin history stays grey", scale(-50, buyer, 2) == "<gray>-50%</>", scale(
 AP.DB().dealThresholdPct = 5
 check("the scale follows the threshold setting", scale(-7, buyer) == "<green>-7%</>" and scale(7, buyer) == "<red>+7%</>", scale(-7, buyer))
 AP.DB().dealThresholdPct = 20
+
+-- ===== Average price =====
+-- The median of the daily minimums: a dump day and a spike day leave it alone
+historyDays, historyPrices = 5, { 10, 100, 110, 120, 1000 }
+runNextFrame()
+check("the average price is the median of the daily prices", AP.Trend.AverageFor("item:25") == 110, AP.Trend.AverageFor("item:25"))
+historyDays, historyPrices = 4, { 10, 100, 120, 1000 }
+runNextFrame()
+check("an even number of days takes the mean of the two middle prices", AP.Trend.AverageFor("item:25") == 110, AP.Trend.AverageFor("item:25"))
+historyDays, historyPrices = 3, nil
 
 -- ===== Memoised average =====
 runNextFrame()
