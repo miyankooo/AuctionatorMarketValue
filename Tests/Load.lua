@@ -697,9 +697,8 @@ check("the sale rate is green from 80%, yellow from 60%, orange from 40%, red be
     rateScale == "<green>80%</> <yellow>79%</> <yellow>60%</> <orange>59%</> <orange>40%</> <red>39%</>", rateScale)
 
 -- ===== Sale Assist =====
--- The call for item 25: Auctionator last saw it at 120, it usually lists for 100, Auctionator's 14-day average, TSM
--- sees it sell 77.9% of the time, and Auctionator posts for its middle duration, where the assumed deposit is 20% of
--- the vendor price
+-- The call for item 25: Auctionator last saw it at 120, it usually sells for TSM's 140 at a sale rate of 0.779, and
+-- Auctionator posts for its middle duration, where the assumed deposit is 20% of the vendor price
 local function item(sellPrice, quality, bindType)
     C_Item.GetItemInfo = function() return "Worn Sword", "item:25", quality or 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, sellPrice, 2, 7, bindType or 2 end
 end
@@ -715,14 +714,12 @@ check("a price a Sell Threshold under the usual one waits", advice() == "<yellow
 lastPrice = 120
 item(200)
 check("a vendor paying more than any auction brings wins", advice() == "<white>Vendor</>", advice())
--- 90 less the 5% cut is 85.5, less the deposits lost on failed listings 80.9: under a vendor's 82, over 78. The usual
--- 100 brings 90.4
-lastPrice = 90
-item(82)
+-- 120 less the 5% cut is 114, less the deposits lost on failed listings 107.8: under a vendor's 110, over 105. The
+-- usual 140 brings 126.8
+item(110)
 check("fees eat today's margin over the vendor, the usual price still pays: maybe", advice() == "<yellow>Auction maybe</>", advice())
-item(78)
+item(105)
 check("a margin that outlasts the cut and the deposits goes to auction", advice() == "<green>Auction</>", advice())
-lastPrice = 120
 -- At a 5% sale rate 19 listings fail for each sale: 19 deposits of 10 against a price of 120
 item(50)
 tsmValues.regionSalePercent = 50
@@ -784,17 +781,17 @@ AP.Trend.Mode = sideOf
 C_Item.GetItemInfo = getItemInfo
 
 -- ===== Market value =====
--- A price of 70: -30% against Auctionator's 100, -50% against TSM's 140
+-- A price of 70: -50% against TSM's 140, -30% against Auctionator's 100
 local function relative(price)
     runNextFrame()
     local _, pct, trusted = AP.Trend.Relative(price, "item:25")
     return pct, trusted
 end
 local pct, trusted = relative(70)
-check("the market value is Auctionator's 14-day average, with TSM too", pct == -30 and trusted, pct)
+check("the market value is TSM's where TSM has one", pct == -50 and trusted, pct)
 historyDays = 2
 pct, trusted = relative(70)
-check("where Auctionator has too few days TSM's sale average fills in", pct == -50 and trusted, pct)
+check("TSM's figure needs no Auctionator history", pct == -50 and trusted, pct)
 setAppData(nil)
 pct, trusted = relative(70)
 check("without TSM a thin Auctionator history moves no glow", pct == -30 and not trusted, pct)
@@ -870,7 +867,7 @@ Auctionator.EventBus:Fire(nil, "replicate_scan_complete")
 check("a finished scan shows green 100%", fullScan.text == "<green>Full Scan 100%</>", fullScan.text)
 
 -- ===== Auctionator's Relative column =====
--- A row priced 70: -30% against Auctionator's 100, -50% against TSM's 140 where Auctionator's history is thin
+-- A row priced 70: -50% against TSM's 140, -30% against Auctionator's 100 where TSM has no figure
 local entries
 local function shoppingColumn()
     entries = { { itemKey = { itemID = 25 }, minPrice = 70 } }
@@ -879,21 +876,16 @@ local function shoppingColumn()
     return entries[1].apTrendText, entries[1].apTrendValue
 end
 local columnText, columnValue = shoppingColumn()
-check("Auctionator's column measures against Auctionator's average, with TSM too", columnText == "<green>-30%</>" and columnValue == -30, columnText)
-setAppData(nil)
-columnText, columnValue = shoppingColumn()
-check("with Auctionator alone the column shows the same percentage", columnText == "<green>-30%</>" and columnValue == -30, columnText)
-setAppData(tsmValues)
-historyDays = 2
-columnText, columnValue = shoppingColumn()
-check("on a thin Auctionator history the column shows TSM's percentage", columnText == "<green>-50%</>" and columnValue == -50, columnText)
+check("with TSM Auctionator's column shows the percentage against TSM's sale average", columnText == "<green>-50%</>" and columnValue == -50, columnText)
 tsmValues.regionSale = nil
 setAppData(tsmValues)
 columnText, columnValue = shoppingColumn()
-check("and without a TSM sale average the thin percentage in grey", columnText == "<gray>-30%</>" and columnValue == -30, columnText)
+check("an item without a TSM sale average shows Auctionator's", columnText == "<green>-30%</>" and columnValue == -30, columnText)
 tsmValues.regionSale = 140
+setAppData(nil)
+columnText, columnValue = shoppingColumn()
+check("with Auctionator alone the column shows Auctionator's percentage", columnText == "<green>-30%</>" and columnValue == -30, columnText)
 setAppData(tsmValues)
-historyDays = 3
 
 -- Auctionator's commodity buy list: the column follows a narrower price column, and its rows, which carry only a unit
 -- price, take the item from the frame holding the provider
@@ -911,7 +903,7 @@ local commodityRows = { { price = 70, rowIndex = 2 }, { price = 70, rowIndex = 1
 runNextFrame()
 commodityProvider:AppendEntries(commodityRows, true)
 check("commodity buy rows show the percentage in the buyer's colours",
-    commodityRows[1].apTrendText == "<green>-30%</>" and commodityRows[3].apTrendText == "<red>+30%</>" and commodityRows[1].apTrendValue == -30,
+    commodityRows[1].apTrendText == "<green>-50%</>" and commodityRows[3].apTrendText == "<yellow>-7%</>" and commodityRows[1].apTrendValue == -50,
     commodityRows[1].apTrendText)
 commodityProvider.results = commodityRows
 commodityProvider:Sort("apTrendValue", Auctionator.Constants.SORT.ASCENDING)
@@ -936,15 +928,14 @@ check("Sale Scan enabled again after the slot clears", scanButton:IsEnabled())
 local bagButton = CreateFrame("Button")
 bagButton.Icon = CreateFrame("Texture", nil, bagButton)
 bagButton.CreateTexture = function(self) self.texture = CreateFrame("Texture", nil, self) return self.texture end
--- The last price 120 sits 20% above Auctionator's 100, and 14% below TSM's 140, which counts only while Auctionator's
--- history is thin
-historyDays = 2
+-- The last price 120 sits 14% below TSM's 140 but 20% above Auctionator's 100, so only without TSM it lights
 runNextFrame()
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
-check("on a thin Auctionator history TSM's sale average decides the bag glow", bagButton.texture == nil)
-historyDays = 3
+check("TSM's market value comes first for the bag glow", bagButton.texture == nil)
+setAppData(nil)
 runNextFrame()
 AuctionatorGroupsViewItemMixin.SetItemInfo(bagButton, { itemLink = "item:25" })
+setAppData(tsmValues)
 local bagGlow = bagButton.texture
 check("a favourable bag item glows green", bagGlow and bagGlow.shown and bagGlow.atlas == "bags-glow-green")
 check("the glow is kept off Auctionator's button", rawget(bagButton, "addonGlow") == nil)
@@ -1022,8 +1013,8 @@ local function anchor(fontString, point)
 end
 
 check("one painter waits on Blizzard's auction house", #painters == 1, #painters)
-check("buy rows show the percentage in the buyer's colours", cheap.fontString and cheap.fontString.text == "<green>-30%</>", cheap.fontString and cheap.fontString.text)
-check("a row over the market value shows red", dear.fontString.text == "<red>+30%</>", dear.fontString.text)
+check("buy rows show the percentage in the buyer's colours", cheap.fontString and cheap.fontString.text == "<green>-50%</>", cheap.fontString and cheap.fontString.text)
+check("a row nearer the market value shows its smaller cut", dear.fontString.text == "<yellow>-7%</>", dear.fontString.text)
 check("a row without a buyout shows nothing", thin.fontString.text == "")
 local to, toPoint, x = anchor(cheap.fontString, "RIGHT")
 check("the item buy column ends the quantity column", to == cheap.cells[3] and toPoint == "RIGHT" and x == -4, tostring(toPoint) .. " " .. tostring(x))
@@ -1035,8 +1026,7 @@ check("a deal past the Deal Threshold glows", cheap.texture ~= nil and cheap.tex
 check("a row above the deal threshold never glows", dear.texture == nil)
 check("nothing is written to Blizzard's rows", rawget(cheap, "apRowData") == nil and rawget(cheap, "apDeal") == nil and rawget(cheap.cells[2], "apRelative") == nil)
 
--- The same rows, handed fresh results: Auctionator alone changes nothing, and a thin Auctionator history lets TSM's
--- sale average 140 fill in
+-- The same rows, handed fresh results: with Auctionator alone they measure against Auctionator's 100
 do
     local cheapData, dearData = cheap.rowData, dear.rowData
     local function fresh()
@@ -1046,25 +1036,23 @@ do
         return cheap.fontString.text .. " " .. dear.fontString.text
     end
     setAppData(nil)
-    check("with Auctionator alone Blizzard's buy rows show the same percentages", fresh() == "<green>-30%</> <red>+30%</>", fresh())
-    check("and a deal glows", cheap.texture.shown)
+    check("with Auctionator alone Blizzard's buy rows show Auctionator's percentage", fresh() == "<green>-30%</> <red>+30%</>", fresh())
+    check("and a deal by Auctionator's percentage glows", cheap.texture.shown)
     setAppData(tsmValues)
-    historyDays = 2
-    check("on a thin Auctionator history the rows show TSM's percentage", fresh() == "<green>-50%</> <yellow>-7%</>", fresh())
-    historyDays = 3
+    check("with TSM back the rows return to TSM's percentage", fresh() == "<green>-50%</> <yellow>-7%</>", fresh())
     cheap.rowData, dear.rowData = cheapData, dearData
     runNextFrame()
     update()
 end
 
 to, toPoint, x = anchor(commodity.fontString, "LEFT")
-check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-30%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
+check("the commodity column follows the price and its checkmark", commodity.fontString.text == "<green>-50%</>" and to == commodity.cells[1].MoneyDisplay and toPoint == "RIGHT" and x == 28, tostring(x))
 to, toPoint, x = anchor(posted.fontString, "RIGHT")
-check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<green>+30%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
+check("sell lists show the seller's colours before the seller column", posted.fontString.text == "<yellow>-7%</>" and to == posted.cells[3] and toPoint == "LEFT" and x == -16, posted.fontString.text)
 check("sell lists never glow", posted.texture == nil)
 
 to, toPoint, x = anchor(browsed.fontString, "RIGHT")
-check("the browse column ends the name column, clear of the price", browsed.fontString.text == "<green>-30%</>" and to == browsed.cells[2] and toPoint == "RIGHT" and x == -4, tostring(x))
+check("the browse column ends the name column, clear of the price", browsed.fontString.text == "<green>-50%</>" and to == browsed.cells[2] and toPoint == "RIGHT" and x == -4, tostring(x))
 header = AuctionHouseFrame.BrowseResultsFrame.ItemList.HeaderContainer.fontString
 to, toPoint, x = anchor(header, "RIGHT")
 check("the browse header sits over the column", header and header.text == "Relative" and toPoint == "LEFT" and x == 196, tostring(x))
@@ -1072,7 +1060,7 @@ check("the browse header sits over the column", header and header.text == "Relat
 -- Blizzard hands cells to other rows when it lays a list out again
 cheap.cells, dear.cells = dear.cells, cheap.cells
 update()
-check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-30%</>")
+check("the column follows the row's new cells", anchor(cheap.fontString, "RIGHT") == cheap.cells[3] and cheap.fontString.text == "<green>-50%</>")
 
 -- ===== Highlight Deals =====
 -- An Auctionator listing stand-in: rows on a ScrollBox under ScrollArea, as AuctionatorResultsListingTemplate has them

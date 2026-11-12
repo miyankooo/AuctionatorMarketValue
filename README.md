@@ -2,7 +2,7 @@
 
 # Simple Market Value
 
-A WoW Forever addon that shows every auction price as a percentage of its market value, the 14-day average of Auctionator's scans, so you see at a glance what is a deal and what is worth selling. It works in Auctionator and in Blizzard's Auction House. It needs only Auctionator, which the CurseForge app installs with it. If you also run the TSM desktop app, it adds TSM's sale data on top.
+A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what is worth selling. The market value is the 14-day average of Auctionator's scans. It works in Auctionator and in Blizzard's Auction House. It needs only Auctionator, which the CurseForge app installs with it. If you also run the TSM desktop app, it adds TSM's sale data on top and measures against TSM's region sale average.
 
 ## Features
 
@@ -16,7 +16,7 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 - Items worth selling glow green in Auctionator's Selling tab.
 - Sale Scan refreshes the prices of everything in your bags with one click.
 - A Full Scan button on Auctionator's Shopping tab refreshes every price on the Auction House, with its progress on the button.
-- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average, a TSM Sales section with the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below) and Daily Sold, and a TSM Trend section with TSM's Recent Average, Historical Average and the Trend between them. Sale Assist then reckons with the item's real Sale Rate, great deals must also sit 50% below TSM's Sale Average and sell 80% of the time, and TSM's Sale Average fills in where Auctionator has too few days of prices.
+- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average, a TSM Sales section with the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below) and Daily Sold, and a TSM Trend section with TSM's Recent Average, Historical Average and the Trend between them. Sale Assist then reckons with the item's real Sale Rate, great deals must also sit 50% below TSM's Sale Average and sell 80% of the time, and the percentages in the auction lists measure against TSM's Sale Average wherever TSM has one.
 
 ## Usage
 

@@ -1,7 +1,7 @@
 local _, AP = ...
 
--- The relative value: a price against the item's market value, the 14-day average of Auctionator's scans. Where
--- Auctionator has too few days of prices, TSM's region sale average fills in, for players who run the TSM app too
+-- The relative value: a price against the item's market value. That is the 14-day average of Auctionator's scans;
+-- for players who run the TSM app too, TSM's region sale average wherever TSM has one
 AP.Trend = {}
 
 -- ===== Auctionator's 14-day average =====
@@ -124,14 +124,13 @@ function AP.Trend.Colorize(pct, mode, days)
     return color:WrapTextInColorCode(text)
 end
 
--- The item's market value and the days of Auctionator history behind it: Auctionator's 14-day average once enough
--- days back it; before that TSM's region sale average where the TSM app has one, with no days; else the thin
--- Auctionator average. So TSM never changes a figure Auctionator stands behind, it only fills the gaps
+-- The item's market value, which every percentage in the auction lists measures against: TSM's region sale average
+-- where the TSM app has one for the item, with no days; otherwise Auctionator's 14-day average and the days of
+-- history behind it. So a player without TSM, and any item TSM has no figure for, rests on Auctionator alone
 function AP.Trend.MarketValue(itemRef)
-    local average, days = AP.Trend.AverageFor(itemRef)
-    if average and days >= AP.Trend.MIN_DAYS then return average, days end
     local saleAverage = AP.TSM.SaleAverage(itemRef)
     if saleAverage then return saleAverage, nil end
+    local average, days = AP.Trend.AverageFor(itemRef)
     return average, days
 end
 

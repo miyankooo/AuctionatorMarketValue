@@ -25,8 +25,8 @@ local INTRO = "Shows every auction price as a percentage of its market value, th
     .. "and the auction prices in one Market Value block. While you sell, Sale Assist at its top says whether the "
     .. "item is worth an auction or belongs to a vendor, after the auction house's cut and deposits.\n\n"
     .. "Optional: with the TSM desktop app, tooltips add TSM's region sale average, sale rate, daily sales and "
-    .. "price trend, great deals must also sell 80% of the time, and TSM's sale average fills in where Auctionator "
-    .. "has too few prices."
+    .. "price trend, great deals must also sell 80% of the time, and the percentages in the auction lists measure "
+    .. "against TSM's region sale average wherever TSM has one."
 
 -- The addon's page in Blizzard's Settings window, under Options > AddOns
 
