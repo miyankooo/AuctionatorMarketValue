@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.3.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.2.1...v2.3.0) (2026-11-12)
+
+
+### Features
+
+* a TSM Sales section at the end of the Market Value block holds the Sale Rate and Daily Sold ([fe57b62](https://github.com/miyankooo/SimpleMarketValue/commit/fe57b624244ab517b5747a081d2b9889b709482d))
+* Auctionator's Average Price is the median of its daily lowest prices over the last 14 days, and the TSM section shows TSM's Sale Average and Market Value, each with the percentage of the Min Buyout against it ([ddbf1e0](https://github.com/miyankooo/SimpleMarketValue/commit/ddbf1e0381f927ba65fa1d297d22e84de5dc7ec6))
+* everything works with Auctionator alone, and the TSM desktop app only adds to it: Highlight Deals now also works without TSM and lights items 50% below their Average Price ([ff5ef73](https://github.com/miyankooo/SimpleMarketValue/commit/ff5ef73ef45d7a8644b3e6008ce35c0144f0c4d4))
+* item tooltips show one Market Value block with every price: Vendor, then Auctionator's Min Buyout and Average Price, then TSM's figures, each average followed by the percentage of the Min Buyout against it, and Auctionator's own Vendor and Auction lines move into it ([e98d62c](https://github.com/miyankooo/SimpleMarketValue/commit/e98d62cd49a166409981e4c56f41f05b4fe51541))
+* Sale Assist, the first line of the Market Value block while you sell, says where to sell an item: Auction, Auction maybe when today's price is low, or Vendor, weighing the vendor price against the expected auction proceeds after the 5% cut and the deposits lost on unsold listings ([bb96186](https://github.com/miyankooo/SimpleMarketValue/commit/bb961861ba1874e5cd05d5578fae11bedfefd985))
+* the timing verdict, such as Strong Buy, Sell Now or Hold, is gone from item tooltips, so the prices speak for themselves ([e98d62c](https://github.com/miyankooo/SimpleMarketValue/commit/e98d62cd49a166409981e4c56f41f05b4fe51541))
+
+
+### Bug Fixes
+
+* the Deals button is now the Highlight Deals checkbox beside Full Scan, so its tick shows at a glance whether only great deals glow ([688b887](https://github.com/miyankooo/SimpleMarketValue/commit/688b8873fc0072c92cf7bb1c6de84971b781791c))
+* the TSM heading in item tooltips shows how old TSM's figures are, not when the TSM app last synced ([06b4e2a](https://github.com/miyankooo/SimpleMarketValue/commit/06b4e2a0f02c692036b0eb13b8eef63ad49ce0b0))
+* with the TSM desktop app, Highlight Deals lights only prices at least 50% below both TSM's Sale Average and Auctionator's Average Price, at a TSM Sale Rate of 80% or more, so a price that is normal on your own auction house no longer counts as a great deal ([06b4e2a](https://github.com/miyankooo/SimpleMarketValue/commit/06b4e2a0f02c692036b0eb13b8eef63ad49ce0b0))
+
 ## [2.2.1](https://github.com/miyankooo/SimpleMarketValue/compare/v2.2.0...v2.2.1) (2026-11-11)
 
 
