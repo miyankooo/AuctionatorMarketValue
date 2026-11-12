@@ -174,6 +174,7 @@ Enum = {
     ItemClass = { Armor = 4, Weapon = 2, Container = 1, Quiver = 11 },
     AuctionHouseSortOrder = { Price = 0 },
     TooltipDataType = { Item = 0 },
+    ItemQuality = { Poor = 0 },
     GameRule = { HardcoreRuleset = 10, PvPRuleset = 213, RPRuleset = 214 },
 }
 C_GameRules = { IsGameRuleActive = function(rule) return rule == Enum.GameRule.PvPRuleset end }
@@ -297,7 +298,12 @@ function eventBus:Fire(_, eventName, ...)
     return self
 end
 
-local config, scansStarted = { vendor_tooltips = true, shift_stack_tooltips = true }, { incremental = 0, replicate = 0 }
+local config, scansStarted = { vendor_tooltips = true, shift_stack_tooltips = true, auction_duration = 24 }, { incremental = 0, replicate = 0 }
+-- Auctionator's Selling tab item: it asks the game for the deposit of what it is about to post
+AuctionatorSaleItemMixin = {
+    GetDeposit = function(self) return self.deposit end,
+    GetDuration = function(self) return self.duration end,
+}
 local shiftDown = false
 function IsShiftKeyDown() return shiftDown end
 -- Auctionator's last recorded price of the item, and the lines its own tooltip code wrote
@@ -311,7 +317,7 @@ end
 
 Auctionator = {
     EventBus = eventBus,
-    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 }, ITEM_INFO = { SELL_PRICE = 11 } },
+    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 }, ITEM_INFO = { SELL_PRICE = 11, RARITY = 3 } },
     Utilities = {
         IsEquipment = function(classID) return classID == 2 or classID == 4 end,
         CreatePaddedMoneyString = function(amount) return amount .. "c" end,
@@ -319,6 +325,8 @@ Auctionator = {
         DBKeyFromBrowseResult = function() return { "25" } end,
         ItemKeyString = function(key) return tostring(key.itemID) end,
         IsVendorable = function(itemInfo) return (itemInfo[11] or 0) > 0 end,
+        -- Bound on pickup or to a quest
+        IsBound = function(itemInfo) return itemInfo[14] == 1 or itemInfo[14] == 4 end,
     },
     -- Auctionator's own tooltip lines, each noting the tooltip it wrote on
     Tooltip = {
@@ -343,7 +351,7 @@ Auctionator = {
             return rows
         end,
     },
-    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3", VENDOR_TOOLTIPS = "vendor_tooltips", SHIFT_STACK_TOOLTIPS = "shift_stack_tooltips" } },
+    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3", VENDOR_TOOLTIPS = "vendor_tooltips", SHIFT_STACK_TOOLTIPS = "shift_stack_tooltips", AUCTION_DURATION = "auction_duration" } },
     State = {
         CurrentRealm = "Forever",
         IncrementalScanFrameRef = { InitiateScan = function() scansStarted.incremental = scansStarted.incremental + 1 end },
@@ -581,14 +589,15 @@ local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > 14
 local TREND_BLOCK = "TSM Trend | > Recent Average=130c | > Historical Average=125c | > Trend=<yellow>+4%</>"
 local SALES_BLOCK = "TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > Relative=<yellow>-14%</> | " .. SALES_BLOCK .. " | " .. TREND_BLOCK
+local ASSIST_NOW = "Sale Assist=<green>Auction</>"
 local text = tooltipText()
-check("the tooltip heads Market Value over the Auctionator, TSM, TSM Sales and TSM Trend sections", text == " | # Market Value | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+check("the tooltip heads Market Value and Sale Assist over the Auctionator, TSM, TSM Sales and TSM Trend sections", text == " | # Market Value | " .. ASSIST_NOW .. " | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 local getItemInfo = C_Item.GetItemInfo
-C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200 end
+C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200, 2, 7, 2 end
 text = tooltipText()
-check("an item a vendor buys leads the block with its Vendor price", text == " | # Market Value | Vendor=200c | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+check("an item a vendor pays more for than an auction brings says so over its Vendor price", text == " | # Market Value | Sale Assist=Vendor | Vendor=200c | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 config.vendor_tooltips = false
-check("not while Auctionator's vendor tooltips are off", tooltipText():find("Vendor", 1, true) == nil)
+check("no Vendor price row while Auctionator's vendor tooltips are off", tooltipText():find("Vendor=", 1, true) == nil)
 config.vendor_tooltips = true
 
 -- Stack prices, as Auctionator shows them: its pricing call carries the stack, here 20 in a bag slot
@@ -597,7 +606,7 @@ local function stackText(tooltip)
     Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 20)
     return tooltipText()
 end
-local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > 14-Day Average=2000c | > Relative=<green>+20%</>"
+local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > 14-Day Average=2000c | > Relative=<green>+20%</>"
     .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > Relative=<yellow>-14%</> | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
     .. " | TSM Trend | > Recent Average=2600c | > Historical Average=2500c | > Trend=<yellow>+4%</>"
 check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
@@ -636,7 +645,7 @@ check("a last price without a 14-day average shows alone", text:find("Auctionato
 lastPrice = nil
 text = tooltipText()
 check("without any Auctionator price the TSM sections stand alone, with no price to compare",
-    text == " | # Market Value | TSM=<gray>8 hours ago</> | > Sale Average=140c | " .. SALES_BLOCK .. " | " .. TREND_BLOCK, text)
+    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | " .. SALES_BLOCK .. " | " .. TREND_BLOCK, text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
 setAppData(tsmValues)
 text = tooltipText()
@@ -686,6 +695,81 @@ setAppData(tsmValues)
 local rateScale = table.concat(rateColors, " ")
 check("the sale rate is green from 80%, yellow from 60%, orange from 40%, red below",
     rateScale == "<green>80%</> <yellow>79%</> <yellow>60%</> <orange>59%</> <orange>40%</> <red>39%</>", rateScale)
+
+-- ===== Sale Assist =====
+-- The call for item 25: Auctionator last saw it at 120, it usually sells for TSM's 140 at a sale rate of 0.779, and
+-- Auctionator posts for its middle duration, where the assumed deposit is 20% of the vendor price
+local function item(sellPrice, quality, bindType)
+    C_Item.GetItemInfo = function() return "Worn Sword", "item:25", quality or 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, sellPrice, 2, 7, bindType or 2 end
+end
+local function advice()
+    runNextFrame()
+    local label, color = AP.SaleAssist.Advice("item:25")
+    return label and color:WrapTextInColorCode(label)
+end
+item(0)
+check("an item no vendor pays for goes to auction now at a usual price", advice() == "<green>Auction</>", advice())
+lastPrice = 100
+check("a price a Sell Threshold under the usual one waits", advice() == "<yellow>Auction maybe</>", advice())
+lastPrice = 120
+item(200)
+check("a vendor paying more than any auction brings wins", advice() == "<white>Vendor</>", advice())
+-- 120 less the 5% cut is 114, less the deposits lost on failed listings 107.8: under a vendor's 110, over 105
+item(110)
+check("fees eat today's margin over the vendor, the usual price still pays: later", advice() == "<yellow>Auction maybe</>", advice())
+item(105)
+check("a margin that outlasts the cut and the deposits sells now", advice() == "<green>Auction</>", advice())
+-- At a 5% sale rate 19 listings fail for each sale: 19 deposits of 10 against a price of 140
+item(50)
+tsmValues.regionSalePercent = 50
+setAppData(tsmValues)
+check("an item that rarely sells loses more deposits than it brings: vendor", advice() == "<white>Vendor</>", advice())
+tsmValues.regionSalePercent = 779
+setAppData(tsmValues)
+check("the same item at a good sale rate goes to auction", advice() == "<green>Auction</>", advice())
+
+-- The game's own deposit replaces the assumed rate: at a 30% sale rate and a price of 150 against a vendor's 100,
+-- a 20% deposit loses the margin and the 10% the game answers with keeps it
+tsmValues.regionSale, tsmValues.regionSalePercent, lastPrice = 150, 300, 150
+setAppData(tsmValues)
+item(100)
+check("under the assumed deposit the vendor wins", advice() == "<white>Vendor</>", advice())
+local function sale(deposit, duration, quantity)
+    return { itemInfo = { itemLink = "item:25" }, deposit = deposit, duration = duration, Quantity = { GetNumber = function() return quantity end },
+        GetDuration = AuctionatorSaleItemMixin.GetDuration }
+end
+check("Auctionator's deposit passes through unchanged", AuctionatorSaleItemMixin.GetDeposit(sale(10, 2, 1)) == 10)
+check("the game's deposit teaches the rate for its duration", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
+check("and the call follows it", advice() == "<green>Auction</>", advice())
+item(5)
+AuctionatorSaleItemMixin.GetDeposit(sale(3, 2, 1))
+check("a deposit on too little vendor value moves no known rate", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
+item(100)
+config.auction_duration = 48
+check("the longest duration costs its own, larger deposit", advice() == "<white>Vendor</>", advice())
+config.auction_duration = 24
+AP.DB().depositRates = nil
+tsmValues.regionSale, tsmValues.regionSalePercent, lastPrice = 140, 779, 120
+setAppData(nil)
+item(0)
+check("without TSM the usual price is Auctionator's 14-day average", advice() == "<green>Auction</>", advice())
+historyDays = 0
+check("with one price alone it is a plain Auction", advice() == "<green>Auction</>", advice())
+lastPrice = nil
+item(5, 0)
+check("grey junk nobody auctions goes to the vendor", advice() == "<white>Vendor</>", advice())
+item(5, 2)
+check("any other item nothing is known about gets no call", advice() == nil, advice())
+lastPrice, historyDays = 120, 3
+item(0, 2, 1)
+check("an item bound on pickup gets no call", advice() == nil, advice())
+setAppData(tsmValues)
+item(0)
+local sideOf = AP.Trend.Mode
+AP.Trend.Mode = function() return AP.Trend.UP_RED end
+check("a buyer's tooltip shows no Sale Assist", tooltipText():find("Sale Assist", 1, true) == nil)
+AP.Trend.Mode = sideOf
+C_Item.GetItemInfo = getItemInfo
 
 -- ===== Market value =====
 -- A price of 70: -50% against TSM's 140, -30% against Auctionator's 100

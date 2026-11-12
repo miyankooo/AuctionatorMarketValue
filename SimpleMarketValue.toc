@@ -18,6 +18,7 @@ Modules\TSM.lua
 # The TSM desktop app's data, read by Modules\TSM.lua whether the TradeSkillMaster addon is enabled or not
 ..\TradeSkillMaster_AppHelper\AppData.lua
 Modules\PriceHistory.lua
+Modules\SaleAssist.lua
 Modules\Tooltip.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua

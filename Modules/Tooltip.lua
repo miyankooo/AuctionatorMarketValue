@@ -1,7 +1,8 @@
 local _, AP = ...
 
 -- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
--- heading: what a vendor pays, then a section per source that has figures.
+-- heading: Sale Assist, the call where and when to sell, while the player is on the selling side; what a vendor
+-- pays; then a section per source that has figures.
 -- Auctionator: when it last saw a price, that minimum buyout, its 14-day average and the one against the other.
 -- TSM, from the TSM desktop app: how old its region figures are, the region sale average and Auctionator's minimum
 -- buyout against it, so every price compared is one the player saw in the Auction House, never TSM's server scan.
@@ -71,7 +72,7 @@ local function auctionatorAge(dbKey)
 end
 
 -- A white line at the block's left edge, with a figure on its right where it has one: the Auctionator and TSM
--- sub-headings beside the grey age of their data, the vendor price in white
+-- sub-headings beside the grey age of their data, Sale Assist beside its call, the vendor price in white
 local function addLine(tooltip, title, right, rightColor)
     if right then
         GameTooltip_AddColoredDoubleLine(tooltip, title, right, HIGHLIGHT_FONT_COLOR, rightColor, false)
@@ -100,15 +101,18 @@ local function addBlock(tooltip, itemLink)
     local hasSales = saleRate or dailySold
     local recent, historical = AP.TSM.MarketValue(itemLink), AP.TSM.Historical(itemLink)
     local hasTrend = recent and historical
-    if not (vendor or lastPrice or average or saleAverage or hasSales or hasTrend) then return end
-
     local mode = AP.Trend.Mode()
+    local advice, adviceColor
+    if mode == AP.Trend.UP_GREEN then advice, adviceColor = AP.SaleAssist.Advice(itemLink) end
+    if not (advice or vendor or lastPrice or average or saleAverage or hasSales or hasTrend) then return end
+
     GameTooltip_AddBlankLineToTooltip(tooltip)
     if stack then
         GameTooltip_AddColoredDoubleLine(tooltip, "Market Value", ("Stack of %d"):format(stack), NORMAL_FONT_COLOR, GRAY_FONT_COLOR, false)
     else
         GameTooltip_AddNormalLine(tooltip, "Market Value")
     end
+    if advice then addLine(tooltip, "Sale Assist", advice, adviceColor) end
     if vendor then addLine(tooltip, "Vendor", money(vendor, stack), HIGHLIGHT_FONT_COLOR) end
     if lastPrice or average then
         addLine(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey), GRAY_FONT_COLOR)
