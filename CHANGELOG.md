@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/miyankooo/SimpleMarketValue/compare/v2.3.0...v2.3.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* players without TSM no longer get a Lua warning at login: the TSM desktop app's data now loads through a small helper, Simple Market Value TSM, only when TSM's AppHelper folder is installed ([9ed3f3d](https://github.com/miyankooo/SimpleMarketValue/commit/9ed3f3d65d48964277b3ab29214f65be8991fb3d))
+
 ## [2.3.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.2.1...v2.3.0) (2026-11-12)
 
 
