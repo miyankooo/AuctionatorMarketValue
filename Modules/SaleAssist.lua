@@ -10,7 +10,8 @@ local _, AP = ...
 -- and beats the vendor only above the vendor price. Relisting once and then vendoring is never better: if one more
 -- listing beats the vendor now, it does after every failed listing too. The one formula covers the cheap item (P near
 -- the vendor price), the item that rarely sells (many lost deposits) and the item with no margin after fees alike,
--- since the deposit grows with the vendor price.
+-- since the deposit grows with the vendor price. D is the deposit for one of the item when its whole stack is listed
+-- at once, so a cheap single item carries the game's full minimum deposit.
 AP.SaleAssist = {}
 
 -- The auction house's share of a sale. ConsignmentRate 5 for every faction auction house in the client's
@@ -18,13 +19,14 @@ AP.SaleAssist = {}
 -- addon does not model
 local CUT = 0.05
 
--- The last resort for a deposit: its share of the vendor price for each of the game's three durations, 2, 8 and 24
--- hours. The same table's DepositRate is 5; taken for every 2 hours, the vanilla rule, it gives these. An assumption,
--- used only until the game has answered once for the duration (gameDeposit, learnDeposit)
-local ASSUMED_DEPOSIT_RATES = { 0.05, 0.20, 0.60 }
-
--- A deposit on less vendor value than this, in copper, is rounded too coarsely to measure a rate from
-local MIN_MEASURED_VALUE = 100
+-- The deposit rule, for wherever the game itself gives no answer for an item: a share of the vendor price of what
+-- is listed, per duration (2, 8 and 24 hours), and never under a minimum for one listing. Measured in game on
+-- 2026-11-12 with C_AuctionHouse.CalculateCommodityDeposit on Linen Cloth (vendor price 13), Auction House closed:
+-- 200 for 8 hours cost 520 and for 24 hours 1560, so 20% and 60%; 20 for 8 hours cost 100, not 52, so the minimum is
+-- 1 silver. The 5% for 2 hours is not measured: it is the client table's DepositRate 5 taken for every 2 hours, which
+-- the other two fit. The rates the game answers with replace these (learnDeposit); the minimum is not learned
+local DEFAULT_DEPOSIT_RATES = { 0.05, 0.20, 0.60 }
+local MIN_DEPOSIT = 100
 
 -- Without TSM's sale rate the call must hold for an item that sells badly and for one that sells well, the tenth and
 -- ninetieth percent of the region's sale rates (10% and 73.5% on EU on 2026-11-12). Where the two disagree, how well
@@ -35,30 +37,34 @@ local LOW_SALE_RATE, HIGH_SALE_RATE = 0.1, 0.7
 local MIN_SALE_RATE = 0.01
 
 -- ===== Deposits =====
+-- How many of the item one listing is reckoned to hold where the bags do not say: a full stack
+local function fullStack(itemLink)
+    local stack = select(8, C_Item.GetItemInfo(itemLink))
+    return type(stack) == "number" and stack > 0 and stack or 1
+end
+
 -- The game's own deposit for posting the item, before it is listed, and the quantity it is for: the two calls
 -- Blizzard's sell windows show their deposit from (Blizzard_AuctionHouseItemSellFrame.lua:434,
 -- Blizzard_AuctionHouseCommoditiesSellFrame.lua:86), the only place the client exposes a deposit; it exposes neither
--- its deposit rate nor its cut. An item in the bags answers by its location, for its whole stack; any other item only
--- by its ID, which the game answers for commodities. Nothing where the game gives no answer, as it may away from an
--- auctioneer: Blizzard's own code only asks with the Auction House open
+-- its deposit rate nor its cut. They answer with the Auction House closed too (checked in game on 2026-11-12). An
+-- item in the bags answers by its location, for its stack there; any other item only by its ID, which the game
+-- answers for commodities, for a full stack. The deposit is nil where the game gives no answer
 local function gameDeposit(itemLink, itemGUID, duration)
     local location = itemGUID and AP.CanAccess(itemGUID) and C_Item.GetItemLocation(itemGUID)
     local deposit, quantity
     if location and location:IsValid() then
-        quantity = C_Item.GetStackCount(location) or 1
+        quantity = C_Item.GetStackCount(location)
+        if type(quantity) ~= "number" or quantity < 1 then quantity = 1 end
         if C_AuctionHouse.GetItemCommodityStatus(location) == Enum.ItemCommodityStatus.Commodity then
             deposit = C_AuctionHouse.CalculateCommodityDeposit(C_Item.GetItemID(location), duration, quantity)
         else
             deposit = C_AuctionHouse.CalculateItemDeposit(location, duration, quantity)
         end
     else
-        quantity = 1
+        quantity = fullStack(itemLink)
         deposit = C_AuctionHouse.CalculateCommodityDeposit(C_Item.GetItemInfoInstant(itemLink), duration, quantity)
     end
-    if type(deposit) == "number" and deposit > 0 and type(quantity) == "number" and quantity > 0 then
-        return deposit, quantity
-    end
-    return nil
+    return type(deposit) == "number" and deposit or nil, quantity
 end
 
 -- The share of the vendor price the game last charged per duration index, saved with the settings: what stands in
@@ -69,26 +75,28 @@ local function depositRates()
     return db.depositRates
 end
 
--- Keeps the rate behind a deposit the game answered with. The newest answer wins, so a rule Blizzard changes is
--- picked up; one on too little vendor value, rounded too coarsely, only fills a gap
+-- Keeps the rate behind a deposit the game answered with. The newest answer wins, so a rate Blizzard changes is
+-- picked up. Only a deposit above the minimum counts: at the minimum it says nothing about the rate
 local function learnDeposit(sellPrice, duration, quantity, deposit)
-    if sellPrice <= 0 then return end
-    local value = sellPrice * quantity
-    local rates = depositRates()
-    if value < MIN_MEASURED_VALUE and rates[duration] then return end
-    rates[duration] = deposit / value
+    if deposit > MIN_DEPOSIT then depositRates()[duration] = deposit / (sellPrice * quantity) end
 end
 
--- The deposit for one of the item at the duration the player posts with, in copper: the game's own answer for the
--- item; else the rate the game last charged for that duration; else the assumed rate
+-- The deposit for one of the item at the duration the player posts with, in copper. An item no vendor pays for
+-- costs what the game says, else nothing, as its vendor price gives. Any other costs the game's own answer for it;
+-- else the rule: the rate the game last charged for that duration, or the default, on a listing never under the
+-- minimum
 local function depositFor(itemLink, itemGUID, sellPrice)
     local duration = AP.Bridge.PostDuration()
     local ok, deposit, quantity = pcall(gameDeposit, itemLink, itemGUID, duration)
-    if ok and deposit then
+    if not ok then deposit, quantity = nil, nil end
+    if sellPrice <= 0 then return deposit and deposit / quantity or 0 end
+    if deposit and deposit > 0 then
         learnDeposit(sellPrice, duration, quantity, deposit)
         return deposit / quantity
     end
-    return sellPrice * (depositRates()[duration] or ASSUMED_DEPOSIT_RATES[duration])
+    quantity = quantity or fullStack(itemLink)
+    local rate = depositRates()[duration] or DEFAULT_DEPOSIT_RATES[duration]
+    return math.max(MIN_DEPOSIT, sellPrice * quantity * rate) / quantity
 end
 
 -- ===== The call =====

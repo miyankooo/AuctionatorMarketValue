@@ -716,9 +716,10 @@ check("the sale rate is green from 80%, yellow from 60%, orange from 40%, red be
 
 -- ===== Sale Assist =====
 -- The call for item 25: Auctionator last saw it at 120, it usually sells for TSM's 140 at a sale rate of 0.779, and
--- Auctionator posts for its middle duration, where the assumed deposit is 20% of the vendor price
-local function item(sellPrice, quality, bindType)
-    C_Item.GetItemInfo = function() return "Worn Sword", "item:25", quality or 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, sellPrice, 2, 7, bindType or 2 end
+-- Auctionator posts for its middle duration, where the default deposit is 20% of the vendor value listed, at least
+-- 100. The item stacks to 20 unless a test says otherwise, so a full stack's deposit sits above the minimum
+local function item(sellPrice, quality, bindType, stack)
+    C_Item.GetItemInfo = function() return "Worn Sword", "item:25", quality or 2, 1, 1, "Weapon", "Sword", stack or 20, "INVTYPE_WEAPON", 0, sellPrice, 2, 7, bindType or 2 end
 end
 local function advice(guid)
     runNextFrame()
@@ -738,6 +739,9 @@ item(110)
 check("fees eat today's margin over the vendor, the usual price still pays: maybe", advice() == "<yellow>Auction maybe</>", advice())
 item(105)
 check("a margin that outlasts the cut and the deposits goes to auction", advice() == "<green>Auction</>", advice())
+-- One that does not stack lists alone and pays the whole minimum of 100, which the same margin cannot carry
+item(105, nil, nil, 1)
+check("a single item carries the whole 1 silver minimum deposit, so the same margin goes to the vendor", advice() == "<white>Vendor</>", advice())
 -- At a 5% sale rate 19 listings fail for each sale: 19 deposits of 10 against a price of 120
 item(50)
 tsmValues.regionSalePercent = 50
@@ -747,34 +751,33 @@ tsmValues.regionSalePercent = 779
 setAppData(tsmValues)
 check("the same item at a good sale rate goes to auction", advice() == "<green>Auction</>", advice())
 
--- The game's own deposit replaces the assumed rate: at a 30% sale rate and a price of 150 against a vendor's 100,
--- a 20% deposit loses the margin and the 10% the game answers with keeps it
+-- The game's own deposit replaces the rule: at a 30% sale rate and a price of 150 against a vendor's 100, the single
+-- bag item's minimum deposit of 100 loses the margin, and 10 each, the game's answer for a stack of 20, keeps it
 tsmValues.regionSale, tsmValues.regionSalePercent, lastPrice = 150, 300, 150
 setAppData(tsmValues)
 item(100)
 depositAsked = nil
-check("where the game gives no answer the assumed deposit stands in, and the vendor wins", advice("Item-1") == "<white>Vendor</>", advice("Item-1"))
+check("where the game gives no answer the rule stands in, and the vendor wins", advice("Item-1") == "<white>Vendor</>", advice("Item-1"))
 check("the game was asked for the bag item at Auctionator's duration", depositAsked == "item 2 1", depositAsked)
--- A stack of 2 in the bags costs 20 to list, 10 each
-depositAnswer = { item = 20, stack = 2 }
+-- A stack of 20 in the bags costs 200 to list, 10 each
+depositAnswer = { item = 200, stack = 20 }
 check("the game's own deposit for the item in the bags decides the call", advice("Item-1") == "<green>Auction</>", advice("Item-1"))
-check("it is asked for the whole stack", depositAsked == "item 2 2", depositAsked)
+check("it is asked for the whole stack", depositAsked == "item 2 20", depositAsked)
 check("and it teaches the rate for its duration", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
-depositAnswer = { status = Enum.ItemCommodityStatus.Commodity, commodity = 80, stack = 2 }
-check("a commodity in the bags is asked for as a commodity", advice("Item-1") == "<white>Vendor</>" and depositAsked == "commodity 2 2", depositAsked)
+depositAnswer = { status = Enum.ItemCommodityStatus.Commodity, commodity = 800, stack = 20 }
+check("a commodity in the bags is asked for as a commodity", advice("Item-1") == "<white>Vendor</>" and depositAsked == "commodity 2 20", depositAsked)
 check("the newest answer moves the rate", AP.DB().depositRates[2] == 0.4, AP.DB().depositRates[2])
-depositAnswer = { commodity = 10 }
-check("an item not in the bags is asked for by its ID, for one", advice() == "<green>Auction</>" and depositAsked == "commodity 2 1", depositAsked)
+depositAnswer = { commodity = 200 }
+check("an item not in the bags is asked for by its ID, for a full stack", advice() == "<green>Auction</>" and depositAsked == "commodity 2 20", depositAsked)
 depositAnswer = {}
 check("where the game stays silent the rate it last charged stands in", advice() == "<green>Auction</>" and AP.DB().depositRates[2] == 0.1, advice())
 local calculate = C_AuctionHouse.CalculateItemDeposit
 C_AuctionHouse.CalculateItemDeposit = function() error("not at the auction house") end
-check("an error from the game falls back the same way", advice("Item-1") == "<green>Auction</>", advice("Item-1"))
+check("an error from the game falls back the same way, for a full stack", advice("Item-1") == "<green>Auction</>", advice("Item-1"))
 C_AuctionHouse.CalculateItemDeposit = calculate
-item(5)
-depositAnswer = { item = 3 }
+depositAnswer = { item = 100 }
 advice("Item-1")
-check("a deposit on too little vendor value moves no known rate", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
+check("a deposit at the minimum says nothing of the rate, so it moves no known rate", AP.DB().depositRates[2] == 0.1, AP.DB().depositRates[2])
 depositAnswer = {}
 item(100)
 config.auction_duration = 48
@@ -785,7 +788,7 @@ tsmValues.regionSale, tsmValues.regionSalePercent, lastPrice = 140, 779, 120
 setAppData(nil)
 item(0)
 check("without TSM an item no vendor pays for still goes to auction", advice() == "<green>Auction</>", advice())
--- No sale rate: at a deposit of 10 an item selling 10% of the time loses 90 a sale, one selling 70% of the time 4
+-- No sale rate: at a deposit of 10 each an item selling 10% of the time loses 90 a sale, one selling 70% of the time 4
 item(50)
 check("without a sale rate there is no call where how well it sells decides", advice() == nil, advice())
 item(200)
