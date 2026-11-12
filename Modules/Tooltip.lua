@@ -1,14 +1,17 @@
 local _, AP = ...
 
 -- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
--- heading: what a vendor pays, then a block per source that has figures. Auctionator: when it last saw a price, that
--- minimum buyout, its 14-day average and the one against the other. TSM, from the TSM desktop app: how old its last
--- scan is, that scan's minimum buyout, the region sale average, the one against the other, the sale rate and the
--- daily sales. TSM Trend, where the price on the player's auction house is heading: TSM's recent average there, its
--- historical average and the one against the other, the trend TSM's own tooltip shows beside its market value
--- (LibTSMApp Tooltip/Internal/AuctionDB.lua). Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since
--- the block carries them, stack prices included: where Auctionator would price the whole stack, every price in the
--- block is for the stack and the heading says so
+-- heading: what a vendor pays, then a section per source that has figures.
+-- Auctionator: when it last saw a price, that minimum buyout, its 14-day average and the one against the other.
+-- TSM, from the TSM desktop app: how old its region figures are, the region sale average and Auctionator's minimum
+-- buyout against it, so every price compared is one the player saw in the Auction House, never TSM's server scan.
+-- TSM Sales: the region sale rate and daily sales.
+-- TSM Trend, where the price on the player's auction house is heading: TSM's recent average there, its historical
+-- average and the one against the other, the trend TSM's own tooltip shows beside its market value (LibTSMApp
+-- Tooltip/Internal/AuctionDB.lua).
+-- Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since the block carries
+-- them, stack prices included: where Auctionator would price the whole stack, every price in the block is for the
+-- stack and the heading says so
 
 -- Only the two player-facing tooltips get the block
 local PLAYER_TOOLTIPS = { [GameTooltip] = true, [ItemRefTooltip] = true }
@@ -67,8 +70,8 @@ local function auctionatorAge(dbKey)
     return nil
 end
 
--- A white line at the block's left edge with a figure on its right: a source's sub-heading over the grey age of its
--- data, or the vendor price in white
+-- A white line at the block's left edge, with a figure on its right where it has one: the Auctionator and TSM
+-- sub-headings beside the grey age of their data, the vendor price in white
 local function addLine(tooltip, title, right, rightColor)
     if right then
         GameTooltip_AddColoredDoubleLine(tooltip, title, right, HIGHLIGHT_FONT_COLOR, rightColor, false)
@@ -92,12 +95,12 @@ local function addBlock(tooltip, itemLink)
     local vendor = AP.Bridge.VendorPrice(itemLink)
     local lastPrice, priceKey = AP.Bridge.AuctionPrice(itemLink)
     local average, days, averageKey = AP.Trend.AverageFor(itemLink)
-    local minBuyout, saleAverage = AP.TSM.MinBuyout(itemLink), AP.TSM.SaleAverage(itemLink)
+    local saleAverage = AP.TSM.SaleAverage(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    local hasTSM = minBuyout or saleAverage or saleRate or dailySold
+    local hasSales = saleRate or dailySold
     local recent, historical = AP.TSM.MarketValue(itemLink), AP.TSM.Historical(itemLink)
     local hasTrend = recent and historical
-    if not (vendor or lastPrice or average or hasTSM or hasTrend) then return end
+    if not (vendor or lastPrice or average or saleAverage or hasSales or hasTrend) then return end
 
     local mode = AP.Trend.Mode()
     GameTooltip_AddBlankLineToTooltip(tooltip)
@@ -113,13 +116,14 @@ local function addBlock(tooltip, itemLink)
         addRow(tooltip, "14-Day Average", money(average, stack))
         addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if hasTSM then
-        -- The age of the scan behind Min Buyout; for an item that scan did not list, of the region's figures
-        local built = AP.TSM.BuiltTime(minBuyout and "minBuyout" or "regionSale")
+    if saleAverage then
+        local built = AP.TSM.BuiltTime("regionSale")
         addLine(tooltip, "TSM", built and ago(built), GRAY_FONT_COLOR)
-        addRow(tooltip, "Min Buyout", money(minBuyout, stack))
         addRow(tooltip, "Sale Average", money(saleAverage, stack))
-        addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(minBuyout, saleAverage), mode))
+        addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
+    end
+    if hasSales then
+        addLine(tooltip, "TSM Sales")
         addRow(tooltip, "Sale Rate", share(saleRate))
         addRow(tooltip, "Daily Sold", whole(dailySold))
     end

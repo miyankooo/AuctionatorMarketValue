@@ -2,8 +2,9 @@ local _, AP = ...
 
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
 -- disabled or load in any order: the region sale average (the market value the percentages measure against wherever
--- it exists), the region sale rate and daily sales, the cheapest buyout on the player's own auction house at the
--- app's last scan, that house's market value and historical price, and how old each of them is. The toc loads the app's AppData.lua right after this file; it hands each block
+-- it exists), the region sale rate and daily sales, the market value and historical price of the player's own
+-- auction house, and how old each of them is. Never a single auction's price: that comes from Auctionator, which
+-- holds what the player saw in the Auction House. The toc loads the app's AppData.lua right after this file; it hands each block
 -- to AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil
 -- without the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads
 -- them (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
@@ -26,10 +27,8 @@ end
 -- The blocks holding the fields read below; commodity blocks carry the house's figures for stackables per region,
 -- which TSM merges into the realm's data. On Forever they come empty, since stackables sit in the realm blocks
 local BLOCK_KEYS = {
-    AUCTIONDB_NON_COMMODITY_DATA = "realm",
     AUCTIONDB_NON_COMMODITY_SCAN_STAT = "realm",
     AUCTIONDB_NON_COMMODITY_HISTORICAL = "realm",
-    AUCTIONDB_COMMODITY_DATA = "region",
     AUCTIONDB_COMMODITY_SCAN_STAT = "region",
     AUCTIONDB_COMMODITY_HISTORICAL = "region",
     AUCTIONDB_REGION_SALE = "region",
@@ -138,11 +137,6 @@ function AP.TSM.DailySold(itemRef)
     return permille and permille / 1000
 end
 
--- The cheapest buyout on the player's auction house at the app's last scan, in copper (DBMinBuyout)
-function AP.TSM.MinBuyout(itemRef)
-    return value("minBuyout", itemRef)
-end
-
 -- TSM's market value on the player's auction house, its average of the recent scans, in copper (DBMarket)
 function AP.TSM.MarketValue(itemRef)
     return value("marketValue", itemRef)
@@ -161,9 +155,8 @@ function AP.TSM.HasSaleRates()
     return false
 end
 
--- When TSM built the data behind a field, as time(): the last scan of the player's auction house for minBuyout,
--- about hourly, and the region's figures for regionSale, about daily. Not when the app last synced, which says only
--- that the app looked for news. nil without that data
+-- When TSM built the data behind a field, as time(): the region's figures for regionSale, about daily. Not when the
+-- app last synced, which says only that the app looked for news. nil without that data
 function AP.TSM.BuiltTime(field)
     local newest
     for _, block in ipairs(blocks) do
