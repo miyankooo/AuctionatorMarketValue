@@ -131,10 +131,10 @@ local function paintRow(row, list)
     text:SetText(value or "")
 
     local isDeal = false
-    if list.buy and trusted then
+    if list.buy and rowData then
         if rule == GREAT_DEALS_RULE then
-            isDeal = AP.Trend.IsGreatDeal(pct, trusted, itemRef)
-        else
+            isDeal = AP.Trend.IsGreatDeal(rowData[list.price], itemRef)
+        elseif trusted then
             isDeal = pct <= -rule
         end
     end

@@ -3,7 +3,7 @@ local _, AP = ...
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
 -- disabled or load in any order: the region sale average (the market value the percentages measure against wherever
 -- it exists), the region sale rate and daily sales, the cheapest buyout on the player's own auction house at the
--- app's last scan, and when the app last synced. The toc loads the app's AppData.lua right after this file; it hands each block
+-- app's last scan, and how old each of them is. The toc loads the app's AppData.lua right after this file; it hands each block
 -- to AP.LoadData, as TradeSkillMaster_AppHelper's own load of the same file hands it to TSM. Every figure is nil
 -- without the app's data for this region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads
 -- them (LibTSMService AppHelper/AppHelper.lua and AuctionDB/AuctionDB.lua, LibTSMApp Config/AuctionDBConfig.lua)
@@ -33,16 +33,11 @@ local BLOCK_KEYS = {
 
 local keys
 local blocks = {}
-local lastSync
 
 -- AppData.lua calls this once per block as select(2, ...).LoadData(tag, realmOrRegion, data). The player's blocks are
 -- kept as text and parsed at their first lookup, so login pays only for a few string matches
 function AP.LoadData(tag, realmOrRegion, data)
     if type(tag) ~= "string" or type(realmOrRegion) ~= "string" or type(data) ~= "string" then return end
-    if tag == "APP_INFO" then
-        lastSync = tonumber(data:match("lastSync=(%d+)")) or lastSync
-        return
-    end
     -- An error here would stop the rest of the file, so unknown keys only mean no blocks match
     if not keys then
         local ok, own = pcall(ownKeys)
@@ -60,7 +55,9 @@ function AP.LoadData(tag, realmOrRegion, data)
         if column > 0 then fields[field] = column end
         column = column + 1
     end
-    blocks[#blocks + 1] = { fields = fields, body = data:sub(dataStart + 1, -3) }
+    -- downloadTime is when TSM built the block, the time TSM's own "last updated" goes by (AuctionDB.lua)
+    local built = tonumber(data:sub(1, dataStart):match("downloadTime=(%d+)"))
+    blocks[#blocks + 1] = { fields = fields, built = built, body = data:sub(dataStart + 1, -3) }
 end
 
 -- Rows by item string, "i:<itemID>" for a plain item. A variant such as i:259891::i1 also answers for its base item,
@@ -150,7 +147,13 @@ function AP.TSM.HasSaleRates()
     return false
 end
 
--- When the TSM app last synced its data, as time(); nil without the app's data
-function AP.TSM.SyncTime()
-    return lastSync
+-- When TSM built the data behind a field, as time(): the last scan of the player's auction house for minBuyout,
+-- about hourly, and the region's figures for regionSale, about daily. Not when the app last synced, which says only
+-- that the app looked for news. nil without that data
+function AP.TSM.BuiltTime(field)
+    local newest
+    for _, block in ipairs(blocks) do
+        if block.fields[field] and block.built and block.built > (newest or 0) then newest = block.built end
+    end
+    return newest
 end

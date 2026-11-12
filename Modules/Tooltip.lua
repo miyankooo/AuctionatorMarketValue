@@ -2,9 +2,9 @@ local _, AP = ...
 
 -- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
 -- heading: what a vendor pays, then a block per source that has figures. Auctionator: when it last saw a price, that
--- minimum buyout, its 14-day average and the one against the other. TSM, from the TSM desktop app: when it last
--- synced, the minimum buyout of its last scan, the region sale average, the one against the other, the sale rate and
--- the daily sales. Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since
+-- minimum buyout, its 14-day average and the one against the other. TSM, from the TSM desktop app: how old its last
+-- scan is, that scan's minimum buyout, the region sale average, the one against the other, the sale rate and the
+-- daily sales. Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since
 -- the block carries them, stack prices included: where Auctionator would price the whole stack, every price in the
 -- block is for the stack and the heading says so
 
@@ -110,8 +110,9 @@ local function addBlock(tooltip, itemLink)
         addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
     if hasTSM then
-        local synced = AP.TSM.SyncTime()
-        addLine(tooltip, "TSM", synced and ago(synced), GRAY_FONT_COLOR)
+        -- The age of the scan behind Min Buyout; for an item that scan did not list, of the region's figures
+        local built = AP.TSM.BuiltTime(minBuyout and "minBuyout" or "regionSale")
+        addLine(tooltip, "TSM", built and ago(built), GRAY_FONT_COLOR)
         addRow(tooltip, "Min Buyout", money(minBuyout, stack))
         addRow(tooltip, "Sale Average", money(saleAverage, stack))
         addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(minBuyout, saleAverage), mode))

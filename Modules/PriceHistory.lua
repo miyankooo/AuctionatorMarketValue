@@ -139,8 +139,8 @@ function AP.Trend.Relative(price, itemRef, mode)
 end
 
 -- ===== Great deals =====
--- At least this far under the market value, in whole percent, with at least this TSM sale rate: an item that is cheap
--- and still sells, the rows Highlight Deals lights
+-- At least this far under every average, in whole percent, with at least this TSM sale rate: an item that is cheap
+-- by the region's sales and on the player's own auction house, and still sells; the rows Highlight Deals lights
 AP.Trend.GREAT_DEAL_PCT = 50
 AP.Trend.GREAT_DEAL_SALE_RATE = 80
 
@@ -149,12 +149,20 @@ function AP.Trend.SalePercent(rate)
     return rate and math.floor(rate * 100 + 0.5)
 end
 
--- Whether a price pct whole percent off the item's market value, trusted as Relative returns it, is a great deal: far
--- enough under it, and an item TSM sees sell often enough; never without TSM's sale rate
-function AP.Trend.IsGreatDeal(pct, trusted, itemRef)
-    if not (trusted and type(pct) == "number" and pct <= -AP.Trend.GREAT_DEAL_PCT) then return false end
+-- Whether price is a great deal for the item: an item TSM sees sell often enough, priced far enough under each
+-- average the addon has for it. TSM's region sale average is what it sells for across the region; Auctionator's
+-- 14-day average, once enough days back it, is what it lists for on the player's own auction house, so a price that
+-- is only normal there is no deal. Never without TSM's sale rate and at least one average
+function AP.Trend.IsGreatDeal(price, itemRef)
     local salePercent = AP.Trend.SalePercent(AP.TSM.SaleRate(itemRef))
-    return salePercent ~= nil and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE
+    if not (salePercent and salePercent >= AP.Trend.GREAT_DEAL_SALE_RATE) then return false end
+
+    local salePct = AP.Trend.Percent(price, AP.TSM.SaleAverage(itemRef))
+    if salePct and salePct > -AP.Trend.GREAT_DEAL_PCT then return false end
+    local average, days = AP.Trend.AverageFor(itemRef)
+    local localPct = average and days >= AP.Trend.MIN_DAYS and AP.Trend.Percent(price, average) or nil
+    if localPct and localPct > -AP.Trend.GREAT_DEAL_PCT then return false end
+    return (salePct or localPct) ~= nil
 end
 
 -- ===== The player's side =====

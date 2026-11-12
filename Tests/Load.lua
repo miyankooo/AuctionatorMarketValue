@@ -381,9 +381,11 @@ local function packed(n)
 end
 local BIG = 2 ^ 30 + 5
 local function appData(values)
+    -- TSM built the scan of the auction house an hour ago and the region's figures eight hours ago
     local function block(tag, key, fields, rows)
-        return ('select(2, ...).LoadData("%s","%s",[[return {downloadTime=1794182799,fields={"itemString","%s"},data={%s}}]])')
-            :format(tag, key, table.concat(fields, '","'), rows)
+        local built = os.time() - (tag == "AUCTIONDB_REGION_SALE" and 8 or 1) * 3600
+        return ('select(2, ...).LoadData("%s","%s",[[return {downloadTime=%d,fields={"itemString","%s"},data={%s}}]])')
+            :format(tag, key, built, table.concat(fields, '","'), rows)
     end
     local function row(fields)
         local cells = {}
@@ -427,7 +429,8 @@ local function setAppData(values)
 end
 
 -- ===== TSM app data =====
-check("the app's last sync is read from its info block", AP.TSM.SyncTime() == os.time() - 15 * 60, AP.TSM.SyncTime())
+check("each figure's age is when TSM built its block, not the app's last sync",
+    AP.TSM.BuiltTime("minBuyout") == os.time() - 3600 and AP.TSM.BuiltTime("regionSale") == os.time() - 8 * 3600, AP.TSM.BuiltTime("minBuyout"))
 check("this region's sale block is read, rate and daily sales in thousandths",
     AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
     tostring(AP.TSM.SaleAverage("item:25")) .. " " .. tostring(AP.TSM.SaleRate("item:25")))
@@ -443,7 +446,7 @@ setAppData(tsmValues)
 check("another ruleset reads none of these blocks", AP.TSM.SaleAverage("item:25") == nil and AP.TSM.MinBuyout("item:25") == nil)
 C_GameRules.IsGameRuleActive = gameRules
 setAppData(nil)
-check("without the app's data every figure is nil", AP.TSM.SyncTime() == nil and AP.TSM.SaleAverage("item:25") == nil)
+check("without the app's data every figure is nil", AP.TSM.BuiltTime("minBuyout") == nil and AP.TSM.SaleAverage("item:25") == nil)
 setAppData(tsmValues)
 
 -- The AH frames Auctionator creates on first open
@@ -571,7 +574,7 @@ local function tooltipText()
     return table.concat(tooltipLines, " | ")
 end
 local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > 14-Day Average=100c | > Relative=<green>+20%</>"
-local TSM_BLOCK = "TSM=<gray>15 minutes ago</> | > Min Buyout=126c | > Sale Average=140c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
+local TSM_BLOCK = "TSM=<gray>1 hour ago</> | > Min Buyout=126c | > Sale Average=140c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 local text = tooltipText()
 check("the tooltip heads Market Value over an Auctionator block, then a TSM block", text == " | # Market Value | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 local getItemInfo = C_Item.GetItemInfo
@@ -589,7 +592,7 @@ local function stackText(tooltip)
     return tooltipText()
 end
 local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > 14-Day Average=2000c | > Relative=<green>+20%</>"
-    .. " | TSM=<gray>15 minutes ago</> | > Min Buyout=2520c | > Sale Average=2800c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
+    .. " | TSM=<gray>1 hour ago</> | > Min Buyout=2520c | > Sale Average=2800c | > Relative=<yellow>-10%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
 shiftDown = true
 text = stackText()
@@ -629,7 +632,8 @@ check("without any Auctionator price the TSM block stands alone", text == " | # 
 tsmValues.regionSale, tsmValues.regionSoldPerDay, tsmValues.minBuyout = nil, 400, nil
 setAppData(tsmValues)
 text = tooltipText()
-check("TSM shows whatever figures it has, daily sales rounded", text == " | # Market Value | TSM=<gray>15 minutes ago</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
+check("TSM shows whatever figures it has, daily sales rounded, under the age of the region's figures without a scanned price",
+    text == " | # Market Value | TSM=<gray>8 hours ago</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay, tsmValues.minBuyout = 140, 34890, 126
 lastPrice, historyDays = 120, 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
@@ -1004,14 +1008,26 @@ check("on, a cheap item TSM sees sell 78% of the time stops glowing in Blizzard'
 -- The same price on an item that sells 80% of the time
 tsmValues.regionSalePercent = 800
 setAppData(tsmValues)
+-- 70 is half of TSM's sale average 140, but only 30% under Auctionator's 14-day average 100
 cheap.rowData = { itemKey = { itemID = 25 }, buyoutAmount = 70 }
 update()
-check("half price and an 80% sale rate glows in Blizzard's lists", cheap.texture.shown and dear.texture == nil)
-local shopped = { { itemKey = { itemID = 25 }, minPrice = 70 }, { itemKey = { itemID = 25 }, minPrice = 100 } }
+check("half the region's price but near the auction house's own average is no great deal", not cheap.texture.shown)
+historyDays = 2
+runNextFrame()
+check("a thin Auctionator history leaves the call to TSM's sale average", AP.Trend.IsGreatDeal(70, "item:25"))
+historyDays = 3
+runNextFrame()
+setAppData(nil)
+check("never a great deal without TSM's sale rate", not AP.Trend.IsGreatDeal(10, "item:25"))
+setAppData(tsmValues)
+cheap.rowData = { itemKey = { itemID = 25 }, buyoutAmount = 50 }
+update()
+check("half of both averages and an 80% sale rate glows in Blizzard's lists", cheap.texture.shown and dear.texture == nil)
+local shopped = { { itemKey = { itemID = 25 }, minPrice = 50 }, { itemKey = { itemID = 25 }, minPrice = 70 } }
 runNextFrame()
 AuctionatorShoppingTabDataProviderMixin.PrettifyData(nil, shopped)
 check("Auctionator's shopping rows mark only great deals", shopped[1].apGreatDeal == true and not shopped[2].apGreatDeal)
-local sold = { { itemKey = { itemID = 25 }, price = 70 } }
+local sold = { { itemKey = { itemID = 25 }, price = 50 } }
 AuctionatorSearchDataProviderMixin.AppendEntries(nil, sold)
 check("a seller's list marks none", sold[1].apGreatDeal == nil)
 paintShopping()
