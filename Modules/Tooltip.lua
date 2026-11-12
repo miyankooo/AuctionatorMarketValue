@@ -4,9 +4,9 @@ local _, AP = ...
 -- heading: Sale Assist, the call where and when to sell, while the player is on the selling side; what a vendor
 -- pays; then a section per source that has figures.
 -- Auctionator: when it last saw a price, that minimum buyout, its 14-day average and the one against the other.
--- TSM, from the TSM desktop app: how old its region figures are, the region sale average and Auctionator's minimum
--- buyout against it, so every price compared is one the player saw in the Auction House, never TSM's server scan.
+-- TSM, from the TSM desktop app: how old its region figures are and the region sale average.
 -- TSM Sales: the region sale rate and daily sales.
+-- The TSM sections hold TSM's own figures only, never one reckoned with a price of Auctionator's.
 -- TSM Trend, where the price on the player's auction house is heading: TSM's recent average there, its historical
 -- average and the one against the other, the trend TSM's own tooltip shows beside its market value (LibTSMApp
 -- Tooltip/Internal/AuctionDB.lua).
@@ -124,7 +124,6 @@ local function addBlock(tooltip, itemLink)
         local built = AP.TSM.BuiltTime("regionSale")
         addLine(tooltip, "TSM", built and ago(built), GRAY_FONT_COLOR)
         addRow(tooltip, "Sale Average", money(saleAverage, stack))
-        addRow(tooltip, "Relative", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
     end
     if hasSales then
         addLine(tooltip, "TSM Sales")

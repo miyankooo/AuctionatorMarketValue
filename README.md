@@ -16,7 +16,7 @@ A WoW Forever addon that shows every auction price as a percentage of its market
 - Items worth selling glow green in Auctionator's Selling tab.
 - Sale Scan refreshes the prices of everything in your bags with one click.
 - A Full Scan button on Auctionator's Shopping tab refreshes every price on the Auction House, with its progress on the button.
-- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average and a Relative percentage against it, a TSM Sales section with the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below) and Daily Sold, and a TSM Trend section with TSM's Recent Average, Historical Average and the Trend between them. Sale Assist then reckons with the item's real Sale Rate, great deals must also sit 50% below TSM's Sale Average and sell 80% of the time, and TSM's Sale Average fills in where Auctionator has too few days of prices.
+- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average, a TSM Sales section with the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below) and Daily Sold, and a TSM Trend section with TSM's Recent Average, Historical Average and the Trend between them. Sale Assist then reckons with the item's real Sale Rate, great deals must also sit 50% below TSM's Sale Average and sell 80% of the time, and TSM's Sale Average fills in where Auctionator has too few days of prices.
 
 ## Usage
 
