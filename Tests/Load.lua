@@ -446,7 +446,7 @@ check("TSM's own scan prices are not read", AP.TSM.BuiltTime("minBuyout") == nil
 check("this region's sale block is read, rate and daily sales in thousandths",
     AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
     tostring(AP.TSM.SaleAverage("item:25")) .. " " .. tostring(AP.TSM.SaleRate("item:25")))
-check("this ruleset and faction's market value and historical price are read, not another faction's", AP.TSM.MarketValue("item:25") == 130 and AP.TSM.Historical("item:25") == 125, AP.TSM.Historical("item:25"))
+check("this ruleset and faction's market value is read, not another faction's", AP.TSM.MarketValue("item:25") == 130, AP.TSM.MarketValue("item:25"))
 check("an auction item key finds the same row", AP.TSM.SaleAverage({ itemID = 25 }) == 140)
 check("a variant's row answers for its base item, a value of 2^30 or more joined from its halves",
     AP.TSM.SaleAverage("item:259891:0:0") == BIG, AP.TSM.SaleAverage("item:259891:0:0"))
@@ -576,7 +576,7 @@ check("Full Scan ensure", AP.FullScanButton.Ensure())
 
 -- ===== Tooltip block =====
 -- Auctionator's last price 120 against its 14-day average 100 and against TSM's region sale average 140; TSM's
--- market value 130 against its historical price 125; a sale rate of 0.779 and 34.89 sold a day; outside the Auction
+-- market value 130, its list average; a sale rate of 0.779 and 34.89 sold a day; outside the Auction
 -- House in the seller's colours
 local showsItem = true
 GameTooltip.IsTooltipType = function() return showsItem end
@@ -588,7 +588,7 @@ local function tooltipText()
 end
 local AUCTIONATOR_BLOCK = "Auctionator=<gray>today</> | > Min Buyout=120c | > List Average=100c | > Relative=<green>+20%</>"
 local SALES_BLOCK = "TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
-local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > Relative=<yellow>-14%</> | > Trend=<yellow>+4%</> | " .. SALES_BLOCK
+local TSM_BLOCK = "TSM=<gray>8 hours ago</> | > Sale Average=140c | > List Average=130c | > Relative=<yellow>-14%</> | " .. SALES_BLOCK
 local ASSIST_NOW = "Sale Assist=<green>Auction</>"
 local text = tooltipText()
 check("the tooltip heads Market Value and Sale Assist over the Auctionator and TSM sections, with TSM Sales last", text == " | # Market Value | " .. ASSIST_NOW .. " | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
@@ -607,7 +607,7 @@ local function stackText(tooltip)
     return tooltipText()
 end
 local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Sale Assist=Vendor | Vendor=4000c | Auctionator=<gray>today</> | > Min Buyout=2400c | > List Average=2000c | > Relative=<green>+20%</>"
-    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > Relative=<yellow>-14%</> | > Trend=<yellow>+4%</>"
+    .. " | TSM=<gray>8 hours ago</> | > Sale Average=2800c | > List Average=2600c | > Relative=<yellow>-14%</>"
     .. " | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
 check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
 shiftDown = true
@@ -645,16 +645,16 @@ check("a last price without a 14-day average shows alone", text:find("Auctionato
 lastPrice = nil
 text = tooltipText()
 check("without any Auctionator price the TSM sections stand alone, with no price for a Relative",
-    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | > Trend=<yellow>+4%</> | " .. SALES_BLOCK, text)
+    text == " | # Market Value | Sale Assist=<green>Auction</> | TSM=<gray>8 hours ago</> | > Sale Average=140c | > List Average=130c | " .. SALES_BLOCK, text)
 tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
 setAppData(tsmValues)
 text = tooltipText()
 check("without a sale average the TSM sections show what they have, daily sales rounded",
-    text == " | # Market Value | TSM=<gray>8 hours ago</> | > Trend=<yellow>+4%</> | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
-tsmValues.historical = nil
+    text == " | # Market Value | TSM=<gray>8 hours ago</> | > List Average=130c | TSM Sales | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
+tsmValues.marketValue = nil
 setAppData(tsmValues)
-check("no Trend, and so no TSM section, without both of its prices", tooltipText():find("Trend", 1, true) == nil and tooltipText():find("TSM=", 1, true) == nil)
-tsmValues.historical = 125
+check("no TSM section without a sale average or a list average", tooltipText():find("TSM=", 1, true) == nil)
+tsmValues.marketValue = 130
 tsmValues.regionSale, tsmValues.regionSoldPerDay = 140, 34890
 lastPrice, historyDays = 120, 3
 -- Launch day on a fresh realm: the TSM app has not synced yet
