@@ -1,7 +1,7 @@
 local _, AP = ...
 
--- Rows under Auctionator's own Vendor and Auction lines on item tooltips, which stay as Auctionator writes them. A
--- section per source that has figures, its name followed by the age of its data:
+-- Rows right under Auctionator's own Vendor and Auction lines on item tooltips, which stay as Auctionator writes them.
+-- A section per source that has figures, its name followed by the age of its data:
 -- Auctionator: the average of its minimum buyouts over 14 days, and its last minimum buyout against it.
 -- TSM, from the TSM desktop app: the region sale average, the same minimum buyout against it, and the region sale rate.
 -- Both percentages start from Auctionator's minimum buyout, the price the player sees in the auction listing, and
@@ -94,10 +94,12 @@ local function addBlock(tooltip, itemLink)
     tooltip:Show()
 end
 
--- After Auctionator's own lines, which its post call adds first, being registered first; for an item that has not
--- loaded yet, Auctionator adds them once it has, so they then follow these rows
-TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
-    if not PLAYER_TOOLTIPS[tooltip] then return end
-    local _, itemLink = TooltipUtil.GetDisplayedItem(tooltip)
-    if itemLink then pcall(addBlock, tooltip, itemLink) end
+-- Right after Auctionator's own Vendor and Auction lines, in the same call that adds them, so other addons' tooltip
+-- lines, such as Questie's or RestedXP's, never come between; also when Auctionator adds its lines later, once an
+-- item's data has loaded. Only on a player tooltip that shows one item: Auctionator also prices every item of a
+-- mail with several, on a tooltip that is no item tooltip
+AP.Bridge.AfterPriceLines(function(tooltip, itemLink)
+    if PLAYER_TOOLTIPS[tooltip] and tooltip:IsTooltipType(Enum.TooltipDataType.Item) then
+        pcall(addBlock, tooltip, itemLink)
+    end
 end)

@@ -121,6 +121,17 @@ function AP.Bridge.RecordPrice(itemKey, price)
     end
 end
 
+-- ===== Item tooltips =====
+-- Calls fn(tooltip, itemLink) right after Auctionator has added its price lines for an item, whenever it does
+-- (ShowTipWithPricingDBKey, Source/Tooltips/Main.lua). Auctionator looks the function up in its Tooltip table at every
+-- call, so the hook takes. Its table, not Blizzard's, so no taint
+function AP.Bridge.AfterPriceLines(fn)
+    if not (Auctionator.Tooltip and Auctionator.Tooltip.ShowTipWithPricingDBKey) then return end
+    hooksecurefunc(Auctionator.Tooltip, "ShowTipWithPricingDBKey", function(tooltip, _, itemLink)
+        if itemLink then fn(tooltip, itemLink) end
+    end)
+end
+
 -- ===== Event bus =====
 -- Subscribe a handler for the whole session; listeners are tables with a ReceiveEvent method, called as (listener, eventName, ...)
 function AP.Bridge.Listen(events, handler)

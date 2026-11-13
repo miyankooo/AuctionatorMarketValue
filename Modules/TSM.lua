@@ -23,8 +23,7 @@ local function ownKeys()
     }
 end
 
--- The blocks holding the fields read below; commodity blocks carry the house's figures for stackables per region,
--- which TSM merges into the realm's data. On Forever they come empty, since stackables sit in the realm blocks
+-- The block holding the fields read below, the region's sale figures, by the key it is filed under
 local BLOCK_KEYS = {
     AUCTIONDB_REGION_SALE = "region",
 }

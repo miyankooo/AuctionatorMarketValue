@@ -174,7 +174,6 @@ Enum = {
     ItemClass = { Armor = 4, Weapon = 2, Container = 1, Quiver = 11 },
     AuctionHouseSortOrder = { Price = 0 },
     TooltipDataType = { Item = 0 },
-    ItemQuality = { Poor = 0 },
     GameRule = { HardcoreRuleset = 10, PvPRuleset = 213, RPRuleset = 214 },
 }
 C_GameRules = { IsGameRuleActive = function(rule) return rule == Enum.GameRule.PvPRuleset end }
@@ -185,9 +184,6 @@ function strsplit(sep, text)
     return table.unpack(parts)
 end
 
-local tooltipPostCall
-TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) tooltipPostCall = fn end }
-TooltipUtil = { GetDisplayedItem = function() return "Worn Sword", "item:25" end }
 
 local tooltipLines = {}
 function GameTooltip_AddBlankLineToTooltip() tooltipLines[#tooltipLines + 1] = "" end
@@ -300,9 +296,7 @@ function eventBus:Fire(_, eventName, ...)
     return self
 end
 
-local config, scansStarted = { vendor_tooltips = true, shift_stack_tooltips = true }, { incremental = 0, replicate = 0 }
-local shiftDown = false
-function IsShiftKeyDown() return shiftDown end
+local config, scansStarted = {}, { incremental = 0, replicate = 0 }
 -- Auctionator's last recorded price of the item, and the lines its own tooltip code wrote
 local lastPrice, ownLines = 120, {}
 
@@ -314,16 +308,13 @@ end
 
 Auctionator = {
     EventBus = eventBus,
-    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 }, ITEM_INFO = { SELL_PRICE = 11, RARITY = 3 } },
+    Constants = { SCAN_DAY_0 = 0, SORT = { ASCENDING = 1 }, ITEM_TYPES = { ITEM = 1 } },
     Utilities = {
         IsEquipment = function(classID) return classID == 2 or classID == 4 end,
         CreatePaddedMoneyString = function(amount) return amount .. "c" end,
         DBKeyFromLink = function(_, callback) callback({ "25" }) end,
         DBKeyFromBrowseResult = function() return { "25" } end,
         ItemKeyString = function(key) return tostring(key.itemID) end,
-        IsVendorable = function(itemInfo) return (itemInfo[11] or 0) > 0 end,
-        -- Bound on pickup or to a quest
-        IsBound = function(itemInfo) return itemInfo[14] == 1 or itemInfo[14] == 4 end,
     },
     -- Auctionator's own tooltip lines, each noting the tooltip it wrote on
     Tooltip = {
@@ -332,8 +323,8 @@ Auctionator = {
         AddAuctionMeanTip = function(tooltip) ownLines[#ownLines + 1] = { "mean", tooltip } end,
         AddAuctionAgeTip = function(tooltip) ownLines[#ownLines + 1] = { "age", tooltip } end,
         AddDisenchantTip = function(tooltip) ownLines[#ownLines + 1] = { "disenchant", tooltip } end,
-        -- Auctionator's pricing of one item, with the stack size its handler read
-        ShowTipWithPricingDBKey = function(tooltip, _, _, itemCount) ownLines[#ownLines + 1] = { "priced " .. itemCount, tooltip } end,
+        -- Auctionator's pricing of one item: its own lines go onto the tooltip
+        ShowTipWithPricingDBKey = function(tooltip) if tooltip == GameTooltip then tooltipLines[#tooltipLines + 1] = "Vendor=1c | Auction=120c" end end,
     },
     DatabaseMixin = { SetPrice = function() end },
     Database = {
@@ -348,7 +339,7 @@ Auctionator = {
             return rows
         end,
     },
-    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3", VENDOR_TOOLTIPS = "vendor_tooltips", SHIFT_STACK_TOOLTIPS = "shift_stack_tooltips" } },
+    Config = { Get = function(key) return config[key] end, Options = { REPLICATE_SCAN = "replicate_scan_3" } },
     State = {
         CurrentRealm = "Forever",
         IncrementalScanFrameRef = { InitiateScan = function() scansStarted.incremental = scansStarted.incremental + 1 end },
@@ -367,7 +358,7 @@ Auctionator = {
 -- auction house's market value 130. Another region's and another faction's blocks, an empty
 -- commodity block and blocks of unread fields, TSM's own scan prices among them, ride along and must be ignored
 function GetCurrentRegionName() return "EU" end
-local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890, marketValue = 130 }
+local tsmValues = { regionSale = 140, regionSalePercent = 779, regionSoldPerDay = 34890 }
 local DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
 local function base32(n)
     local text = ""
@@ -408,9 +399,9 @@ local function appData(values)
         block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Horde", DATA, "{25,1,1,1}"),
         block("AUCTIONDB_NON_COMMODITY_DATA", "PvP-Alliance", DATA, "{25,1,1,1}"),
         block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Horde", { "marketValue" }, "{25,1}"),
-        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, row({ "marketValue" })),
+        block("AUCTIONDB_NON_COMMODITY_SCAN_STAT", "PvP-Alliance", { "marketValue" }, "{25,1}"),
         block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Horde", { "historical" }, "{25,1}"),
-        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Alliance", { "historical" }, row({ "historical" })),
+        block("AUCTIONDB_NON_COMMODITY_HISTORICAL", "PvP-Alliance", { "historical" }, "{25,1}"),
         block("AUCTIONDB_REGION_STAT", "Forever-EU", { "regionMarketValue" }, "{25,1}"),
     }, "\n")
 end
@@ -626,16 +617,26 @@ check("Full Scan ensure", AP.FullScanButton.Ensure())
 -- rate of 0.779; outside the Auction House in the seller's colours
 local showsItem = true
 GameTooltip.IsTooltipType = function() return showsItem end
-local function tooltipText()
+-- Auctionator prices the hovered item, its own lines first, and the addon's rows follow in the same call
+local function tooltipText(tooltip)
     tooltipLines = {}
     runNextFrame()
-    tooltipPostCall(GameTooltip)
-    return table.concat(tooltipLines, " | ")
+    Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 1)
+    local text = table.concat(tooltipLines, " | "):gsub("^Vendor=1c | Auction=120c", ""):gsub("^ | ", "")
+    return text
 end
 local AUCTIONATOR_BLOCK = "Auctionator <gray>(<1d)</> | > Min. Buyout Average=100c | > vs Min. Buyout Average=<green>+20%</>"
 local TSM_BLOCK = "TSM <gray>(8h)</> | > Sale Average=140c | > vs Sale Average=<yellow>-14%</> | > Sale Rate=<yellow>78%</>"
 local text = tooltipText()
 check("the tooltip adds the Auctionator and TSM sections, each with its age in brackets, and nothing else", text == AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
+tooltipLines = {}
+Auctionator.Tooltip.ShowTipWithPricingDBKey(GameTooltip, { "25" }, "item:25", 1)
+check("the rows come in the same call as Auctionator's Vendor and Auction lines, right under them",
+    tooltipLines[1] == "Vendor=1c | Auction=120c" and tooltipLines[2] == "Auctionator <gray>(<1d)</>", tooltipLines[2])
+showsItem = false
+check("a tooltip that shows no single item, such as a mail with several, gets no rows", tooltipText() == "")
+showsItem = true
+check("nor does any other tooltip", tooltipText(SettingsTooltip) == "")
 historyAge = 3
 text = tooltipText()
 check("Auctionator's age falls back to its whole scan days", text:find("Auctionator <gray>(3d)</>", 1, true) ~= nil, text)
