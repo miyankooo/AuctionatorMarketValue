@@ -492,12 +492,12 @@ check("the region figures' age is when TSM built their block, not the app's last
     math.abs(AP.TSM.BuiltTime("regionSale") - (os.time() - 8 * 3600)) <= 2, AP.TSM.BuiltTime("regionSale"))
 check("TSM's own scan prices are not read", AP.TSM.BuiltTime("minBuyout") == nil)
 check("this region's sale block is read, rate and daily sales in thousandths",
-    AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779 and AP.TSM.DailySold("item:25") == 34.89,
+    AP.TSM.SaleAverage("item:25") == 140 and AP.TSM.SaleRate("item:25") == 0.779,
     tostring(AP.TSM.SaleAverage("item:25")) .. " " .. tostring(AP.TSM.SaleRate("item:25")))
 check("an auction item key finds the same row", AP.TSM.SaleAverage({ itemID = 25 }) == 140)
 check("a variant's row answers for its base item, a value of 2^30 or more joined from its halves",
     AP.TSM.SaleAverage("item:259891:0:0") == BIG, AP.TSM.SaleAverage("item:259891:0:0"))
-check("a zero is no figure", AP.TSM.DailySold("item:259891") == nil)
+check("a zero is no figure", AP.TSM.SaleRate("item:259891") == nil)
 check("an item without a row has no figure", AP.TSM.SaleAverage("item:26") == nil)
 local gameRules = C_GameRules.IsGameRuleActive
 C_GameRules.IsGameRuleActive = function(rule) return rule == Enum.GameRule.HardcoreRuleset end
@@ -621,10 +621,9 @@ check("an open in combat prints one gold-prefixed line", #printed == 1 and print
 check("Sale Scan ensure", AP.SaleScan.Ensure())
 check("Full Scan ensure", AP.FullScanButton.Ensure())
 
--- ===== Tooltip block =====
--- Auctionator's last price 120 against its 14-day average 100 and against TSM's region sale average 140; TSM's
--- unread market value 130; a sale rate of 0.779 and 34.89 sold a day; outside the Auction
--- House in the seller's colours
+-- ===== Tooltip rows =====
+-- Auctionator's last price 120 against its 14-day average 100 and against TSM's region sale average 140, at a sale
+-- rate of 0.779; outside the Auction House in the seller's colours
 local showsItem = true
 GameTooltip.IsTooltipType = function() return showsItem end
 local function tooltipText()
@@ -633,40 +632,10 @@ local function tooltipText()
     tooltipPostCall(GameTooltip)
     return table.concat(tooltipLines, " | ")
 end
-local AUCTIONATOR_BLOCK = "Auctionator <gray>(<1d)</> | > Min Buyout=120c | > Average Price=100c | > vs Average Price=<green>+20%</>"
-local TSM_BLOCK = "TSM <gray>(8h)</> | > Sale Average=140c | > vs Sale Average=<yellow>-14%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
+local AUCTIONATOR_BLOCK = "Auctionator <gray>(<1d)</> | > Min. Buyout Average=100c | > vs Min. Buyout Average=<green>+20%</>"
+local TSM_BLOCK = "TSM <gray>(8h)</> | > Sale Average=140c | > vs Sale Average=<yellow>-14%</> | > Sale Rate=<yellow>78%</>"
 local text = tooltipText()
-check("the tooltip heads Market Value over the Auctionator and TSM sections, each with its age in brackets", text == " | # Market Value | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
-check("no Sale Assist and no TSM market value", text:find("Sale Assist", 1, true) == nil and text:find("Market Value=", 1, true) == nil)
-local getItemInfo = C_Item.GetItemInfo
-C_Item.GetItemInfo = function() return "Worn Sword", "item:25", 2, 1, 1, "Weapon", "Sword", 1, "INVTYPE_WEAPON", 0, 200, 2, 7, 2 end
-text = tooltipText()
-check("an item a vendor buys leads the block with its Vendor price", text == " | # Market Value | Vendor=200c | " .. AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
-config.vendor_tooltips = false
-check("no Vendor price row while Auctionator's vendor tooltips are off", tooltipText():find("Vendor=", 1, true) == nil)
-config.vendor_tooltips = true
-
--- Stack prices, as Auctionator shows them: its pricing call carries the stack, here 20 in a bag slot
-local function stackText(tooltip)
-    ownLines = {}
-    Auctionator.Tooltip.ShowTipWithPricingDBKey(tooltip or GameTooltip, { "25" }, "item:25", 20)
-    return tooltipText()
-end
-local STACK_BLOCK = " | Market Value=<gray>Stack of 20</> | Vendor=4000c | Auctionator <gray>(<1d)</> | > Min Buyout=2400c | > Average Price=2000c | > vs Average Price=<green>+20%</>"
-    .. " | TSM <gray>(8h)</> | > Sale Average=2800c | > vs Sale Average=<yellow>-14%</> | > Sale Rate=<yellow>78%</> | > Daily Sold=35"
-check("without Shift a stack shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
-shiftDown = true
-text = stackText()
-check("with Shift every price is for the stack, and the heading says so", text == STACK_BLOCK, text)
-check("Auctionator's own pricing still runs", #ownLines == 1 and ownLines[1][1] == "priced 20")
-check("the stack is taken once, so the tooltip's next item shows single prices", tooltipText():find("Vendor=200c", 1, true) ~= nil)
-check("a stack priced on another tooltip is not this one's", stackText(SettingsTooltip):find("Vendor=200c", 1, true) ~= nil)
-config.shift_stack_tooltips = false
-check("with Auctionator's Shift option off, Shift shows single prices", stackText():find("Vendor=200c", 1, true) ~= nil)
-shiftDown = false
-check("and no Shift the stack's", stackText() == STACK_BLOCK)
-config.shift_stack_tooltips = true
-C_Item.GetItemInfo = getItemInfo
+check("the tooltip adds the Auctionator and TSM sections, each with its age in brackets, and nothing else", text == AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 historyAge = 3
 text = tooltipText()
 check("Auctionator's age falls back to its whole scan days", text:find("Auctionator <gray>(3d)</>", 1, true) ~= nil, text)
@@ -683,35 +652,34 @@ for _, case in ipairs({ { 13 * 60, "13m" }, { 5 * 3600, "5h" }, { 3600, "1h" }, 
 end
 historyDays = 1
 text = tooltipText()
-check("thin history greys the Auctionator percentage", text:find("> vs Average Price=<gray>+20%</>", 1, true) ~= nil, text)
+check("thin history greys the Auctionator percentage", text:find("> vs Min. Buyout Average=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
-check("a last price without a 14-day average shows alone", text:find("Auctionator <gray>(2d)</> | > Min Buyout=120c | TSM", 1, true) ~= nil, text)
+check("without a 14-day average there is no Auctionator section", text == TSM_BLOCK, text)
+historyDays = 3
 lastPrice = nil
 text = tooltipText()
-check("without any Auctionator price the TSM section stands alone, with no price to compare",
-    text == " | # Market Value | TSM <gray>(8h)</> | > Sale Average=140c | > Sale Rate=<yellow>78%</> | > Daily Sold=35", text)
-tsmValues.regionSale, tsmValues.regionSoldPerDay = nil, 400
+check("without a last price there is nothing to compare", text == "Auctionator <gray>(2d)</> | > Min. Buyout Average=100c | TSM <gray>(8h)</> | > Sale Average=140c | > Sale Rate=<yellow>78%</>", text)
+lastPrice = 120
+tsmValues.regionSale = nil
 setAppData(tsmValues)
 text = tooltipText()
-check("without a sale average the TSM section shows what it has, daily sales rounded",
-    text == " | # Market Value | TSM <gray>(8h)</> | > Sale Rate=<yellow>78%</> | > Daily Sold=0", text)
-tsmValues.regionSalePercent, tsmValues.regionSoldPerDay = nil, nil
+check("without a sale average the TSM section shows the sale rate", text:find("TSM <gray>(8h)</> | > Sale Rate=<yellow>78%</>", 1, true) ~= nil, text)
+tsmValues.regionSalePercent = nil
 setAppData(tsmValues)
-check("no TSM section without any of its figures", tooltipText():find("TSM", 1, true) == nil)
-tsmValues.regionSale, tsmValues.regionSalePercent, tsmValues.regionSoldPerDay = 140, 779, 34890
-lastPrice, historyDays = 120, 3
+check("no TSM section without either figure", tooltipText():find("TSM", 1, true) == nil)
+tsmValues.regionSale, tsmValues.regionSalePercent = 140, 779
 -- Launch day on a fresh realm: the TSM app has not synced yet
 setAppData(nil)
 text = tooltipText()
-check("TSM without the app's data leaves the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> Average Price=100c", 1, true) ~= nil, text)
-lastPrice, historyDays = nil, 0
+check("TSM without the app's data leaves the Auctionator section alone", text:find("TSM", 1, true) == nil and text:find("> Min. Buyout Average=100c", 1, true) ~= nil, text)
+historyDays = 0
 text = tooltipText()
-check("no block without any figure", text == "", text)
+check("no rows without any figure", text == "", text)
 setAppData(tsmValues)
-lastPrice, historyDays = 120, 3
+historyDays = 3
 
--- Auctionator's own price lines: silent on a player tooltip that shows an item, as before anywhere else
+-- Auctionator's own price lines stay as Auctionator writes them, on every tooltip
 local function ownLineNames(tooltip)
     ownLines = {}
     for _, name in ipairs({ "AddVendorTip", "AddAuctionTip", "AddAuctionMeanTip", "AddAuctionAgeTip", "AddDisenchantTip" }) do
@@ -721,18 +689,14 @@ local function ownLineNames(tooltip)
     for index, line in ipairs(ownLines) do names[index] = line[2] == tooltip and line[1] or "?" end
     return table.concat(names, " ")
 end
-check("Auctionator's price lines stay off an item tooltip, its other lines stay", ownLineNames(GameTooltip) == "disenchant", ownLineNames(GameTooltip))
-showsItem = false
-check("they run on a tooltip that lists several items", ownLineNames(GameTooltip) == "vendor auction mean age disenchant", ownLineNames(GameTooltip))
-showsItem = true
-check("and on any other tooltip", ownLineNames(SettingsTooltip) == "vendor auction mean age disenchant", ownLineNames(SettingsTooltip))
+check("Auctionator's Vendor and Auction lines run untouched on an item tooltip", ownLineNames(GameTooltip) == "vendor auction mean age disenchant", ownLineNames(GameTooltip))
 
 -- TSM's sale rate in the colour of how easily the item sells
 local rateColors = {}
 for _, percent in ipairs({ 800, 794, 600, 594, 400, 394 }) do
     tsmValues.regionSalePercent = percent
     setAppData(tsmValues)
-    rateColors[#rateColors + 1] = tooltipText():match("> Sale Rate=([^|]+) |")
+    rateColors[#rateColors + 1] = tooltipText():match("> Sale Rate=([^|]+)$")
 end
 tsmValues.regionSalePercent = 779
 setAppData(tsmValues)
@@ -759,7 +723,7 @@ historyDays = 3
 pct, trusted = relative(70)
 check("without TSM it is Auctionator's 14-day average", pct == -30 and trusted, pct)
 text = tooltipText()
-check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> Average Price=100c", 1, true) ~= nil, text)
+check("without TSM the tooltip shows the Auctionator block alone", text:find("TSM", 1, true) == nil and text:find("> Min. Buyout Average=100c", 1, true) ~= nil, text)
 setAppData(tsmValues)
 
 -- ===== Colour scale =====

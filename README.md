@@ -2,20 +2,19 @@
 
 # Simple Market Value
 
-A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what is worth selling. The market value is Auctionator's Average Price, the middle of its daily lowest prices over the last 14 days. It works in Auctionator and in Blizzard's Auction House. It needs only Auctionator, which the CurseForge app installs with it. If you also run the TSM desktop app, it adds TSM's sale data on top and measures against TSM's region Sale Average.
+A WoW Forever addon that shows every auction price as a percentage of its market value, so you see at a glance what is a deal and what is worth selling. The market value is Auctionator's Min. Buyout Average, the middle of its daily lowest prices over the last 14 days. It works in Auctionator and in Blizzard's Auction House. It needs only Auctionator, which the CurseForge app installs with it. If you also run the TSM desktop app, it adds TSM's sale data on top and measures against TSM's region Sale Average.
 
 ## Features
 
 - A Relative column in Auctionator's Shopping and Selling tabs, on its buy screens for items and commodities, and in Blizzard's auction lists, where it sits beside the item name in search results.
 - Every percentage is green for a good price, yellow for a fair one and red for a poor one, by your Deal Threshold while you shop and your Sell Threshold while you sell.
-- Item tooltips show one Market Value block with every price of the item: the Vendor price, then Auctionator's section with how old its price is, its Min Buyout, its Average Price over 14 days and vs Average Price, the percentage of the Min Buyout against it.
-- Auctionator's own Vendor and Auction tooltip lines move into that block, so the prices sit in one place. Hold Shift over a stack and every price in the block is for the whole stack, as Auctionator's stack price option sets.
+- Item tooltips add an Auctionator section right under Auctionator's own Vendor and Auction lines: how old its price is, the Min. Buyout Average of its scans over the last 14 days, and vs Min. Buyout Average, the percentage of the last Min Buyout against it.
 - Deals glow green in Blizzard's buy lists.
-- Highlight Deals, a checkbox beside Full Scan, makes only great deals glow green in every buy list, Blizzard's and Auctionator's: items priced at least 50% below their Average Price.
+- Highlight Deals, a checkbox beside Full Scan, makes only great deals glow green in every buy list, Blizzard's and Auctionator's: items priced at least 50% below their Min. Buyout Average.
 - Items worth selling glow green in Auctionator's Selling tab.
 - Sale Scan refreshes the prices of everything in your bags with one click.
 - A Full Scan button on Auctionator's Shopping tab refreshes every price on the Auction House, with its progress on the button.
-- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average, what the item actually sold for, the percentage of the same Min Buyout against it, the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below) and Daily Sold. Great deals must then also sit 50% below TSM's Sale Average and sell 80% of the time, and the Relative column in the auction lists measures against TSM's Sale Average wherever TSM has one.
+- Optional, with the TSM desktop app: the tooltip adds a TSM section with the region Sale Average, what the item actually sold for, the percentage of the same Min Buyout against it, and the Sale Rate (green from 80%, yellow from 60%, orange from 40%, red below). Great deals must then also sit 50% below TSM's Sale Average and sell 80% of the time, and the Relative column in the auction lists measures against TSM's Sale Average wherever TSM has one.
 
 ## Usage
 

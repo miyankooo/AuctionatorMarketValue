@@ -2,7 +2,7 @@ local addonName, AP = ...
 
 -- TSM's figures for an item, read straight from the TSM desktop app's data file, so the TradeSkillMaster addon can be
 -- disabled or load in any order: the region sale average (the market value the list percentages measure against
--- wherever it exists), the region sale rate and daily sales, and how old they are. Never a single auction's price: that comes from Auctionator, which holds what the player saw
+-- wherever it exists), the region sale rate, and how old they are. Never a single auction's price: that comes from Auctionator, which holds what the player saw
 -- in the Auction House. The app's AppData.lua hands each block to AP.LoadData, as TradeSkillMaster_AppHelper's own
 -- load of the same file hands it to TSM (see Loading below). Every figure is nil without the app's data for this
 -- region, ruleset and faction. Tags, keys, fields and packing as TSM v4.15.6 reads them (LibTSMService
@@ -123,12 +123,6 @@ end
 -- (DBRegionSaleRate)
 function AP.TSM.SaleRate(itemRef)
     local permille = value("regionSalePercent", itemRef)
-    return permille and permille / 1000
-end
-
--- How many the region sells a day, written in thousandths (DBRegionSoldPerDay)
-function AP.TSM.DailySold(itemRef)
-    local permille = value("regionSoldPerDay", itemRef)
     return permille and permille / 1000
 end
 

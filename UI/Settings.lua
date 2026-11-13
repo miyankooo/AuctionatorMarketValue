@@ -21,9 +21,9 @@ local INTRO = "Shows every auction price as a percentage of its market value, th
     .. "percentage rests on fewer than 3 days of prices.\n\n"
     .. "The percentages show in item tooltips, in Auctionator's Shopping and Selling tabs and in Blizzard's auction "
     .. "lists. Deals glow green in Blizzard's buy lists, and items worth selling in the Selling tab's bag list. "
-    .. "Highlight Deals on the Shopping tab lights only great deals instead. Item tooltips gather the vendor price "
-    .. "and the auction prices in one Market Value block.\n\n"
-    .. "Optional: with the TSM desktop app, tooltips add TSM's region sale average, sale rate and daily sales, "
+    .. "Highlight Deals on the Shopping tab lights only great deals instead. Item tooltips add the average of "
+    .. "Auctionator's minimum buyouts over 14 days under Auctionator's own price lines.\n\n"
+    .. "Optional: with the TSM desktop app, tooltips add TSM's region sale average and sale rate, "
     .. "great deals must also sell 80% of the time, and the percentages in the auction lists measure against TSM's "
     .. "region sale average wherever TSM has one."
 

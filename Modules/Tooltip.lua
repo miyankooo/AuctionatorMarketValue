@@ -1,22 +1,17 @@
 local _, AP = ...
 
--- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
--- heading: what a vendor pays, then a section per source that has figures, its name followed by the age of its data.
--- Auctionator: the minimum buyout it last saw, its average price over 14 days and the minimum buyout against it.
--- TSM, from the TSM desktop app: the region sale average, the same minimum buyout against it, the region sale rate
--- and daily sales.
+-- Rows under Auctionator's own Vendor and Auction lines on item tooltips, which stay as Auctionator writes them. A
+-- section per source that has figures, its name followed by the age of its data:
+-- Auctionator: the average of its minimum buyouts over 14 days, and its last minimum buyout against it.
+-- TSM, from the TSM desktop app: the region sale average, the same minimum buyout against it, and the region sale rate.
 -- Both percentages start from Auctionator's minimum buyout, the price the player sees in the auction listing, and
--- each label names the figure it measures against.
--- Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since the block carries
--- them, stack prices included: where Auctionator would price the whole stack, every price in the block is for the
--- stack and the heading says so
+-- each label names the figure it measures against. Each row shows only with its figure. Prices are for one item
 
 -- Only the two player-facing tooltips get the block
 local PLAYER_TOOLTIPS = { [GameTooltip] = true, [ItemRefTooltip] = true }
 
--- A price for one, or for the whole stack
-local function money(amount, stack)
-    return amount and GetMoneyString(amount * (stack or 1), true)
+local function money(amount)
+    return amount and GetMoneyString(amount, true)
 end
 
 -- How easily an item sells by TSM's sale rate: the lowest whole percent of each colour, best first; red below the last
@@ -38,11 +33,6 @@ local function share(rate)
         end
     end
     return color:WrapTextInColorCode(("%d%%"):format(pct))
-end
-
--- "35" for 34.89 sales a day
-local function whole(number)
-    return number and ("%d"):format(math.floor(number + 0.5))
 end
 
 -- "13m" for a time(): minutes within the hour, hours within the day, days after that
@@ -81,52 +71,33 @@ local function addRow(tooltip, label, text)
 end
 
 local function addBlock(tooltip, itemLink)
-    local stack = AP.Bridge.TakeStack(tooltip, itemLink)
-    local vendor = AP.Bridge.VendorPrice(itemLink)
     local lastPrice, priceKey = AP.Bridge.AuctionPrice(itemLink)
     local average, days, averageKey = AP.Trend.AverageFor(itemLink)
-    local saleAverage = AP.TSM.SaleAverage(itemLink)
-    local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    local hasTSM = saleAverage or saleRate or dailySold
-    if not (vendor or lastPrice or average or hasTSM) then return end
+    local saleAverage, saleRate = AP.TSM.SaleAverage(itemLink), AP.TSM.SaleRate(itemLink)
+    if not (average or saleAverage or saleRate) then return end
 
     local mode = AP.Trend.Mode()
-    GameTooltip_AddBlankLineToTooltip(tooltip)
-    if stack then
-        GameTooltip_AddColoredDoubleLine(tooltip, "Market Value", ("Stack of %d"):format(stack), NORMAL_FONT_COLOR, GRAY_FONT_COLOR, false)
-    else
-        GameTooltip_AddNormalLine(tooltip, "Market Value")
-    end
-    if vendor then
-        GameTooltip_AddColoredDoubleLine(tooltip, "Vendor", money(vendor, stack), HIGHLIGHT_FONT_COLOR, HIGHLIGHT_FONT_COLOR, false)
-    end
-    if lastPrice or average then
+    if average then
         addHeading(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey))
-        addRow(tooltip, "Min Buyout", money(lastPrice, stack))
-        addRow(tooltip, "Average Price", money(average, stack))
-        addRow(tooltip, "vs Average Price", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
+        addRow(tooltip, "Min. Buyout Average", money(average))
+        addRow(tooltip, "vs Min. Buyout Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if hasTSM then
+    if saleAverage or saleRate then
         local built = AP.TSM.BuiltTime("regionSale")
         addHeading(tooltip, "TSM", built and age(built))
-        addRow(tooltip, "Sale Average", money(saleAverage, stack))
+        addRow(tooltip, "Sale Average", money(saleAverage))
         addRow(tooltip, "vs Sale Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
         addRow(tooltip, "Sale Rate", share(saleRate))
-        addRow(tooltip, "Daily Sold", whole(dailySold))
     end
 
     -- Resize so the added lines render inside the tooltip frame
     tooltip:Show()
 end
 
+-- After Auctionator's own lines, which its post call adds first, being registered first; for an item that has not
+-- loaded yet, Auctionator adds them once it has, so they then follow these rows
 TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
     if not PLAYER_TOOLTIPS[tooltip] then return end
     local _, itemLink = TooltipUtil.GetDisplayedItem(tooltip)
     if itemLink then pcall(addBlock, tooltip, itemLink) end
-end)
-
--- Auctionator prices a tooltip from its own post call, which runs before the one above, or later once an uncached
--- item has loaded; either way its price lines stay off a player tooltip that shows an item
-AP.Bridge.TakeOverPriceLines(function(tooltip)
-    return PLAYER_TOOLTIPS[tooltip] and tooltip:IsTooltipType(Enum.TooltipDataType.Item)
 end)
