@@ -625,8 +625,8 @@ local function tooltipText(tooltip)
     local text = table.concat(tooltipLines, " | "):gsub("^Vendor=1c | Auction=120c", ""):gsub("^ | ", "")
     return text
 end
-local AUCTIONATOR_BLOCK = "Auctionator <gray>(<1d)</> | > Min. Buyout Average=100c | > vs Min. Buyout Average=<green>+20%</>"
-local TSM_BLOCK = "TSM <gray>(8h)</> | > Sale Average=140c | > vs Sale Average=<yellow>-14%</> | > Sale Rate=<yellow>78%</>"
+local AUCTIONATOR_BLOCK = "Auctionator <gray>(<1d)</> | > Min. Buyout Average=100c | > Now vs Average=<green>+20%</>"
+local TSM_BLOCK = "TSM <gray>(8h)</> | > Sale Average=140c | > Now vs Sale Avg=<yellow>-14%</> | > Sale Rate=<yellow>78%</>"
 local text = tooltipText()
 check("the tooltip adds the Auctionator and TSM sections, each with its age in brackets, and nothing else", text == AUCTIONATOR_BLOCK .. " | " .. TSM_BLOCK, text)
 tooltipLines = {}
@@ -653,7 +653,7 @@ for _, case in ipairs({ { 13 * 60, "13m" }, { 5 * 3600, "5h" }, { 3600, "1h" }, 
 end
 historyDays = 1
 text = tooltipText()
-check("thin history greys the Auctionator percentage", text:find("> vs Min. Buyout Average=<gray>+20%</>", 1, true) ~= nil, text)
+check("thin history greys the Auctionator percentage", text:find("> Now vs Average=<gray>+20%</>", 1, true) ~= nil, text)
 historyDays = 0
 text = tooltipText()
 check("without a 14-day average there is no Auctionator section", text == TSM_BLOCK, text)

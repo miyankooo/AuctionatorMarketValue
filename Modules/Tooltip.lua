@@ -4,7 +4,7 @@ local _, AP = ...
 -- A section per source that has figures, its name followed by the age of its data:
 -- Auctionator: the average of its minimum buyouts over 14 days, and its last minimum buyout against it.
 -- TSM, from the TSM desktop app: the region sale average, the same minimum buyout against it, and the region sale rate.
--- Both percentages start from Auctionator's minimum buyout, the price the player sees in the auction listing, and
+-- Both percentages, Now vs ..., start from Auctionator's latest minimum buyout, the price its Auction line shows, and
 -- each label names the figure it measures against. Each row shows only with its figure. Prices are for one item
 
 -- Only the two player-facing tooltips get the block
@@ -80,13 +80,13 @@ local function addBlock(tooltip, itemLink)
     if average then
         addHeading(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey))
         addRow(tooltip, "Min. Buyout Average", money(average))
-        addRow(tooltip, "vs Min. Buyout Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
+        addRow(tooltip, "Now vs Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
     if saleAverage or saleRate then
         local built = AP.TSM.BuiltTime("regionSale")
         addHeading(tooltip, "TSM", built and age(built))
         addRow(tooltip, "Sale Average", money(saleAverage))
-        addRow(tooltip, "vs Sale Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
+        addRow(tooltip, "Now vs Sale Avg", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
         addRow(tooltip, "Sale Rate", share(saleRate))
     end
 
