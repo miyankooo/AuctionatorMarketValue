@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.3.1...v2.4.0) (2026-11-13)
+
+
+### Features
+
+* item tooltips keep Auctionator's own Vendor and Auction lines and add only a few rows under them: Auctionator's Min. Buyout Average with the percentage against it, and with TSM its Sale Average, the percentage against it and the Sale Rate ([167711b](https://github.com/miyankooo/SimpleMarketValue/commit/167711bae42608cf02f0012cc50d22700a9b5548))
+* Sale Assist and TSM's Market Value are gone from item tooltips, and each section shows its age in brackets after its name, such as Auctionator (13m) ([28fdaba](https://github.com/miyankooo/SimpleMarketValue/commit/28fdabad6dc648c907f19bd0f471e7c17c1e3338))
+
+
+### Bug Fixes
+
+* the tooltip rows always sit right under Auctionator's Vendor and Auction lines, also when other addons such as Questie or RestedXP add their own lines ([b8b079f](https://github.com/miyankooo/SimpleMarketValue/commit/b8b079f8fb5349eac17cf7f7e54454d86f31d5ce))
+
 ## [2.3.1](https://github.com/miyankooo/SimpleMarketValue/compare/v2.3.0...v2.3.1) (2026-11-12)
 
 
