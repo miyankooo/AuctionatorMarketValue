@@ -121,43 +121,15 @@ function AP.Bridge.RecordPrice(itemKey, price)
     end
 end
 
--- ===== Selling =====
--- What a vendor pays for one, by the rule of Auctionator's own Vendor line (Source/Utilities/IsVendorable.lua); nil
--- for an item no vendor pays for
-function AP.Bridge.SellPrice(itemLink)
+-- ===== Item tooltips =====
+-- What a vendor pays for one, by the rule of Auctionator's own Vendor line and only while its vendor tooltip option is
+-- on (Source/Tooltips/Main.lua, Source/Utilities/IsVendorable.lua); nil otherwise
+function AP.Bridge.VendorPrice(itemLink)
+    if Auctionator.Config.Get(Auctionator.Config.Options.VENDOR_TOOLTIPS) ~= true then return nil end
     local itemInfo = { C_Item.GetItemInfo(itemLink) }
     local ok, vendorable = pcall(Auctionator.Utilities.IsVendorable, itemInfo)
     if ok and vendorable then return itemInfo[Auctionator.Constants.ITEM_INFO.SELL_PRICE] end
     return nil
-end
-
--- Whether the item can go to auction at all, by Auctionator's own rule for its Auction line: not bound on pickup or
--- to a quest (Source/Utilities/IsBound.lua); false while the item's data has not loaded
-function AP.Bridge.CanAuction(itemLink)
-    local itemInfo = { C_Item.GetItemInfo(itemLink) }
-    if itemInfo[1] == nil then return false end
-    local ok, bound = pcall(Auctionator.Utilities.IsBound, itemInfo)
-    return ok and not bound
-end
-
--- Whether the item is of poor quality, the grey items made to be sold to a vendor
-function AP.Bridge.IsJunk(itemLink)
-    return select(Auctionator.Constants.ITEM_INFO.RARITY, C_Item.GetItemInfo(itemLink)) == Enum.ItemQuality.Poor
-end
-
--- The duration index Auctionator's Selling tab posts with by default, 1 to 3 for the game's three durations
--- (Source_ModernAH/Tabs/Selling/Mixins/SaleItem.lua maps its option's 12, 24 and 48 to them)
-local DURATION_INDEX = { [12] = 1, [24] = 2, [48] = 3 }
-
-function AP.Bridge.PostDuration()
-    return DURATION_INDEX[Auctionator.Config.Get(Auctionator.Config.Options.AUCTION_DURATION)] or 2
-end
-
--- ===== Item tooltips =====
--- What a vendor pays for one, only while Auctionator's vendor tooltip option is on (Source/Tooltips/Main.lua)
-function AP.Bridge.VendorPrice(itemLink)
-    if Auctionator.Config.Get(Auctionator.Config.Options.VENDOR_TOOLTIPS) ~= true then return nil end
-    return AP.Bridge.SellPrice(itemLink)
 end
 
 -- Auctionator's own Vendor, Auction, mean and age lines, which the Market Value block carries instead

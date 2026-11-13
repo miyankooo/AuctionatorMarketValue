@@ -1,15 +1,12 @@
 local _, AP = ...
 
 -- The Market Value block on item tooltips, the one place for every price of the item. After a blank line and a gold
--- heading: Sale Assist, the call where and when to sell, while the player is on the selling side; what a vendor
--- pays; then a section per source that has figures.
--- Auctionator: when it last saw a price, that minimum buyout, its average price over 14 days and the minimum
--- buyout against it.
--- TSM, from the TSM desktop app: how old its figures are, the region sale average and TSM's market value on the
--- player's auction house, each followed by the same minimum buyout against it.
--- TSM Sales, last: the region sale rate and daily sales.
--- Every percentage starts from Auctionator's minimum buyout, the price the player sees in the auction listing, and
--- its label names the figure it measures against, so the three read apart at a glance.
+-- heading: what a vendor pays, then a section per source that has figures, its name followed by the age of its data.
+-- Auctionator: the minimum buyout it last saw, its average price over 14 days and the minimum buyout against it.
+-- TSM, from the TSM desktop app: the region sale average, the same minimum buyout against it, the region sale rate
+-- and daily sales.
+-- Both percentages start from Auctionator's minimum buyout, the price the player sees in the auction listing, and
+-- each label names the figure it measures against.
 -- Each row shows only with its figure. Auctionator's own price lines stay off these tooltips, since the block carries
 -- them, stack prices included: where Auctionator would price the whole stack, every price in the block is for the
 -- stack and the heading says so
@@ -48,37 +45,29 @@ local function whole(number)
     return number and ("%d"):format(math.floor(number + 0.5))
 end
 
-local function count(amount, unit)
-    return ("%d %s%s ago"):format(amount, unit, amount == 1 and "" or "s")
-end
-
--- "12 minutes ago" for a time(): minutes within the hour, hours within the day, days after that
-local function ago(when)
+-- "13m" for a time(): minutes within the hour, hours within the day, days after that
+local function age(when)
     local minutes = math.max(0, math.floor((time() - when) / 60))
-    if minutes < 60 then return count(math.max(1, minutes), "minute") end
-    if minutes < 1440 then return count(math.floor(minutes / 60), "hour") end
-    return count(math.floor(minutes / 1440), "day")
+    if minutes < 60 then return ("%dm"):format(math.max(1, minutes)) end
+    if minutes < 1440 then return ("%dh"):format(math.floor(minutes / 60)) end
+    return ("%dd"):format(math.floor(minutes / 1440))
 end
 
 -- When Auctionator last got a price for the key: to the minute once the addon saw it, otherwise in Auctionator's
--- whole scan days
+-- whole scan days, "<1d" for a price from today
 local function auctionatorAge(dbKey)
     if dbKey == nil then return nil end
     local seen = AP.Bridge.SeenTime(dbKey)
-    if seen then return ago(seen) end
+    if seen then return age(seen) end
     local days = AP.Bridge.PriceAge(dbKey)
-    if days then return days == 0 and "today" or count(days, "day") end
+    if days then return days == 0 and "<1d" or ("%dd"):format(days) end
     return nil
 end
 
--- A white line at the block's left edge, with a figure on its right where it has one: the Auctionator and TSM
--- sub-headings beside the grey age of their data, Sale Assist beside its call, the vendor price in white
-local function addLine(tooltip, title, right, rightColor)
-    if right then
-        GameTooltip_AddColoredDoubleLine(tooltip, title, right, HIGHLIGHT_FONT_COLOR, rightColor, false)
-    else
-        GameTooltip_AddHighlightLine(tooltip, title)
-    end
+-- A source's sub-heading in white, the age of its data after it in grey brackets: "Auctionator (13m)"
+local function addHeading(tooltip, title, dataAge)
+    if dataAge then title = title .. " " .. GRAY_FONT_COLOR:WrapTextInColorCode("(" .. dataAge .. ")") end
+    GameTooltip_AddHighlightLine(tooltip, title)
 end
 
 -- Rows sit one grid step in from their sub-heading, through the helpers' own leftOffset (SharedTooltipTemplates.lua)
@@ -96,42 +85,32 @@ local function addBlock(tooltip, itemLink)
     local vendor = AP.Bridge.VendorPrice(itemLink)
     local lastPrice, priceKey = AP.Bridge.AuctionPrice(itemLink)
     local average, days, averageKey = AP.Trend.AverageFor(itemLink)
-    local saleAverage, marketValue = AP.TSM.SaleAverage(itemLink), AP.TSM.MarketValue(itemLink)
+    local saleAverage = AP.TSM.SaleAverage(itemLink)
     local saleRate, dailySold = AP.TSM.SaleRate(itemLink), AP.TSM.DailySold(itemLink)
-    local hasSales = saleRate or dailySold
-    local mode = AP.Trend.Mode()
-    local advice, adviceColor
-    if mode == AP.Trend.UP_GREEN then
-        local data = tooltip:GetPrimaryTooltipData()
-        advice, adviceColor = AP.SaleAssist.Advice(itemLink, data and data.guid)
-    end
-    if not (advice or vendor or lastPrice or average or saleAverage or marketValue or hasSales) then return end
+    local hasTSM = saleAverage or saleRate or dailySold
+    if not (vendor or lastPrice or average or hasTSM) then return end
 
+    local mode = AP.Trend.Mode()
     GameTooltip_AddBlankLineToTooltip(tooltip)
     if stack then
         GameTooltip_AddColoredDoubleLine(tooltip, "Market Value", ("Stack of %d"):format(stack), NORMAL_FONT_COLOR, GRAY_FONT_COLOR, false)
     else
         GameTooltip_AddNormalLine(tooltip, "Market Value")
     end
-    if advice then addLine(tooltip, "Sale Assist", advice, adviceColor) end
-    if vendor then addLine(tooltip, "Vendor", money(vendor, stack), HIGHLIGHT_FONT_COLOR) end
+    if vendor then
+        GameTooltip_AddColoredDoubleLine(tooltip, "Vendor", money(vendor, stack), HIGHLIGHT_FONT_COLOR, HIGHLIGHT_FONT_COLOR, false)
+    end
     if lastPrice or average then
-        addLine(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey), GRAY_FONT_COLOR)
+        addHeading(tooltip, "Auctionator", auctionatorAge(priceKey or averageKey))
         addRow(tooltip, "Min Buyout", money(lastPrice, stack))
         addRow(tooltip, "Average Price", money(average, stack))
         addRow(tooltip, "vs Average Price", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, average), mode, days))
     end
-    if saleAverage or marketValue then
-        -- The age of the region's figures; of the auction house scan for an item with a market value alone
-        local built = AP.TSM.BuiltTime(saleAverage and "regionSale" or "marketValue")
-        addLine(tooltip, "TSM", built and ago(built), GRAY_FONT_COLOR)
+    if hasTSM then
+        local built = AP.TSM.BuiltTime("regionSale")
+        addHeading(tooltip, "TSM", built and age(built))
         addRow(tooltip, "Sale Average", money(saleAverage, stack))
         addRow(tooltip, "vs Sale Average", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, saleAverage), mode))
-        addRow(tooltip, "Market Value", money(marketValue, stack))
-        addRow(tooltip, "vs Market Value", AP.Trend.Colorize(AP.Trend.Percent(lastPrice, marketValue), mode))
-    end
-    if hasSales then
-        addLine(tooltip, "TSM Sales")
         addRow(tooltip, "Sale Rate", share(saleRate))
         addRow(tooltip, "Daily Sold", whole(dailySold))
     end

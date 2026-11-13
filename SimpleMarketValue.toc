@@ -16,7 +16,6 @@ Modules\Init.lua
 Modules\Bridge.lua
 Modules\TSM.lua
 Modules\PriceHistory.lua
-Modules\SaleAssist.lua
 Modules\Tooltip.lua
 Modules\TrendColumn.lua
 Modules\BagGlow.lua
