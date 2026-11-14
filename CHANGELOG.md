@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.4.0...v2.5.0) (2026-11-14)
+
+
+### Features
+
+* the tooltip's percentage rows read Now vs Average and Now vs Sale Avg, so it is clear they judge the latest lowest buyout ([568dbf3](https://github.com/miyankooo/SimpleMarketValue/commit/568dbf342985189aa69b5b639d5faacca8240a8a))
+
 ## [2.4.0](https://github.com/miyankooo/SimpleMarketValue/compare/v2.3.1...v2.4.0) (2026-11-13)
 
 
